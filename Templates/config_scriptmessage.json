@@ -1,0 +1,15 @@
+{
+    "MgGraph": {
+        "MgProfile": "v1.0",
+        "MgPermissionType": "Application",
+        "MgDisconnectWhenDone": false,
+        "MgTenantID": "",
+        "MgClientID": "",
+        "MgApp_AuthenticationType": "",
+        "MgApp_CertificatePath": "",
+        "MgApp_CertificateName": "",
+        "MgApp_CertificateThumbprint": "",
+        "MgApp_EncryptedCertificatePassword": "",
+        "MgApp_EncryptedSecret": ""
+    }
+}
