@@ -12,7 +12,6 @@ Function Connect-ScriptMessage
 
         .PARAMETER Service
         Specify the messaging service to connect to.
-
         .PARAMETER ReturnConnectionInfo
         Returns connection information after performing function.
 
