@@ -6,8 +6,23 @@ enum MessagingService {
         MgGraph
 }
 
-# Import Global Functions
-$ScriptMessageFunctions = @((Get-ChildItem -Path $PSScriptRoot\Private\*.ps1) + (Get-ChildItem -Path $PSScriptRoot\Public\*.ps1))
+# Import Private Functions
+$ScriptMessageFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1)
+Foreach($ScriptMessageFunction in $ScriptMessageFunctions)
+{
+    Write-Verbose "Importing $ScriptMessageFunction"
+    Try
+    {
+        . $ScriptMessageFunction.fullname
+    }
+    Catch
+    {
+        Write-Error -Message "Failed to import function $($ScriptMessageFunction.fullname): $_"
+    }
+}
+
+# Import Public Functions
+$ScriptMessageFunctions = @(Get-ChildItem -Path $PSScriptRoot\Public\*.ps1)
 Foreach($ScriptMessageFunction in $ScriptMessageFunctions)
 {
     Write-Verbose "Importing $ScriptMessageFunction"

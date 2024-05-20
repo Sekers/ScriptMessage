@@ -16,15 +16,18 @@ function Send-ScriptMessage
     .PARAMETER Service
     Specify the messaging service to send the message from.
     .PARAMETER From
-    An object with the 'Address' property value set to the messaging address you are sending from. Optionally, include a 'Name' property and corresponding value.
+    The messaging address you are sending from. Alternatively, provide an object with the 'Address' property value set to the messaging address and, optionally, include a 'Name' property and corresponding value.
     .PARAMETER ReplyTo
-    An object with the 'Address' property value set to the messaging address you want recipients to reply to. Optionally, include a 'Name' property and corresponding value.
+    The messaging address(es) you want recipients to reply to. Alternatively, provide an object (or array of objects) with the 'Address' property value set to the messaging address you want recipients to reply to and, optionally, include a 'Name' property and corresponding value.
     .PARAMETER To
-    An array of addresses to send the message to. Must have at least one of 'To', 'CC', or 'BCC' set, depending on the messaging service used.
+    An array of addresses to send the message to. Alternatively, provide an object (or array of objects) with the 'Address' property value set to the messaging address you want to send to and, optionally, include a 'Name' property and corresponding value.
+    Must have at least one of 'To', 'CC', or 'BCC' set, depending on the messaging service used.
     .PARAMETER CC
-    An array of addresses to carbon copy (CC) the message to. Must have at least one of 'To', 'CC', or 'BCC' set, depending on the messaging service used.
+    An array of addresses to carbon copy (CC) the message to. Alternatively, provide an object (or array of objects) with the 'Address' property value set to the messaging address you want to send to and, optionally, include a 'Name' property and corresponding value.
+    Must have at least one of 'To', 'CC', or 'BCC' set, depending on the messaging service used.
     .PARAMETER BCC
-    An array of addresses to blind carbon copy (BCC) the message to. Must have at least one of 'To', 'CC', or 'BCC' set, depending on the messaging service used.
+    An array of addresses to blind carbon copy (BCC) the message to. Alternatively, provide an object (or array of objects) with the 'Address' property value set to the messaging address you want to send to and, optionally, include a 'Name' property and corresponding value.
+    Must have at least one of 'To', 'CC', or 'BCC' set, depending on the messaging service used.
     .PARAMETER SaveToSentItems
     Use this parameter to ask the messaging service to save the sent message to a 'Sent Items' location, if supported by the service.
     Defaults to '$true'.
@@ -43,12 +46,23 @@ function Send-ScriptMessage
     Specify the account used to send the message request. This might be different than the 'From' parameter in the case of "Send As', "Send on Behalf", delegated mailboxes, etc.
     If not specified, defaults to the address inside of the 'From' parameter.
 
-    .EXAMPLE
+    .EXAMPLE 
     $MessageArguments = @{
-        From = @{
-            Address = 'jdoe@domain.com'
+        From = 'jdoe@domain.com'
+        To = 'bmayes@domain.com'
+        CC = @()
+        Subject = "Test Message"
+        Body = @{
+            Content = "This is a test message.`n`nThank you!"
         }
+    }
+
+    Send-ScriptMessage -Service MgGraph @MessageArguments
+    .EXAMPLE 
+    $MessageArguments = @{
+        From = 'jdoe@domain.com'
         To = @('bmayes@domain.com')
+        CC = @( "hcoonly@domain.com", "plittle@domain.com")
         Subject = "Test Message"
         Body = @{
             Content = "This is a test message.`n`nThank you!"
@@ -191,18 +205,22 @@ function Send-ScriptMessage
         [string]$Sender
     )
 
-    # Make sure that FROM is provided.
-    if ([string]::IsNullOrEmpty($From.Address))
-    {
-        throw 'No From address provided.'
-    }
-
     # Make sure that at least one of, To, CC, or BCC is provided.
     if ([string]::IsNullOrEmpty($To) -and [string]::IsNullOrEmpty($CC) -and [string]::IsNullOrEmpty($BCC))
     {
         throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
     }
-    
+
+    # Convert recipient types into properly formatted PSObject.
+    $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
+    [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo
+    [array]$To = ConvertTo-ScriptMessageRecipientObject -Recipient $To
+    [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC
+    [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
+
+    # Convert body into properly formatted PSObject
+    $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
+
     # Set the necesasary configuration variables.
     $ScriptMessageConfig = Get-ScriptMessageConfig
     
@@ -217,7 +235,7 @@ function Send-ScriptMessage
     switch ($Service)
     {
         'MgGraph'   {
-            $SendMessageParameters = @{
+            $SendMessageParameters = [ordered]@{
                 From = $From
                 ReplyTo = $ReplyTo
                 To = $To

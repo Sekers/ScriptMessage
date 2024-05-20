@@ -8,88 +8,55 @@ Function ConvertTo-IMicrosoftGraphRecipient
         ValueFromPipelineByPropertyName = $true)]
         [AllowEmptyCollection()]
         [AllowNull()]
-        [pscustomobject]$EmailAddress
+        [pscustomobject]$EmailAddress,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [string]$Name
     )
 
-    DynamicParam
+    # Return Null If Provided Recipient is Empty
+    if (([string]::IsNullOrEmpty($EmailAddress)) -and ([string]::IsNullOrEmpty($EmailAddress.Address)))
     {
-        # Initialize Parameter Dictionary
-        $ParameterDictionary = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
-
-        # Make the 'Name' parameter appear only if a single 'EmailAddress' is supplied.
-        # This is only used when setting the FROM & REPLY TO values, with a single EmailAddress provided.
-        if ($EmailAddress.Count -eq 1)
-        { 
-            $ParameterAttributes = [System.Management.Automation.ParameterAttribute]@{
-                ParameterSetName = "EmailAddress"
-                Mandatory = $false
-                ValueFromPipeline = $true
-                ValueFromPipelineByPropertyName = $true
-            }
-
-            $AttributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
-            $AttributeCollection.Add($ParameterAttributes)
-
-            $DynamicParameter1 = [System.Management.Automation.RuntimeDefinedParameter]::new(
-                'Name', [string], $AttributeCollection)
-
-            $ParameterDictionary.Add('Name', $DynamicParameter1)
-        }
-
-        return $ParameterDictionary
+        return $null
     }
-    
-    begin
+
+    # Loop through each of the recipient paramater array objects
+    $IMicrosoftGraphRecipient = foreach ($address in $EmailAddress)
     {
-        if($PSBoundParameters.ContainsKey('Name'))
+        # Check if string (email address) or object/hashtable/etc. If not, separate out.
+        if (-not ($address.GetType().Name -eq 'String'))
         {
-            $Name = $PSBoundParameters['Name']
+            # Verify object contains 'Address' key or property.
+            if ([string]::IsNullOrEmpty($address.AddressObj))
+            {
+                throw "Improperly formatted sender, recipient, or reply to address."
+            }
+
+            # Set 'Name' & update 'Address' (do 'Name' 1st!)
+            $Name = $address.Name
+            $address = $address.AddressObj
+        }
+
+        if ([string]::IsNullOrEmpty($Name))
+        {
+            @{
+                EmailAddress = @{Address = $address}
+            }
+        }
+        else
+        {
+            @{
+                EmailAddress = @{
+                    Name = $Name
+                    Address = $address}
+            }
         }
     }
 
-    process {
-        # Return Null If Provided Recipient is Empty
-        if ([string]::IsNullOrEmpty($EmailAddress))
-        {
-            return $null
-        }
-
-        # Loop through each of the recipient paramater array objects
-        $IMicrosoftGraphRecipient = foreach ($address in $EmailAddress)
-        {
-            # Check if string (email address) or object/hashtable/etc. If not, separate out.
-            if (-not ($address.GetType().Name -eq 'String'))
-            {
-                # Verify object contains 'Address' key or property.
-                if ([string]::IsNullOrEmpty($address.Address))
-                {
-                    throw "Improperly formatted sender, recipient, or reply to address."
-                }
-
-                # Set 'Name' & update 'Address' (do 'Name' 1st!)
-                $Name = $address.Name
-                $address = $address.Address
-            }
-
-
-            if ([string]::IsNullOrEmpty($Name))
-            {
-                @{
-                    EmailAddress = @{Address = $address}
-                }
-            }
-            else
-            {
-                @{
-                    EmailAddress = @{
-                        Name = $Name
-                        Address = $address}
-                }
-            }
-        }
-
-        return $IMicrosoftGraphRecipient
-    }
+    return $IMicrosoftGraphRecipient
 }
 
 function ConvertTo-IMicrosoftGraphItemBody
@@ -272,14 +239,8 @@ function Send-ScriptMessage_MgGraph
 
     # Convert Parameters to IMicrosoft*
     $Message = @{}
-    if (-not [string]::IsNullOrEmpty($From.Address)) # Don't try because 'ConvertTo-IMicrosoftGraphRecipient' function 'Name' parameter doesn't accept values unless an email address is provided.
-    {
-        [hashtable]$Message['From'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $From.Address -Name $From.Name
-    }
-    if (-not [string]::IsNullOrEmpty($ReplyTo.Address)) # Don't try because 'ConvertTo-IMicrosoftGraphRecipient' function 'Name' parameter doesn't accept values unless an email address is provided.
-    {
-        [array]$Message['ReplyTo'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $ReplyTo.Address -Name $ReplyTo.Name
-    }
+    $Message['From'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $From
+    [array]$Message['ReplyTo'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $ReplyTo
     [array]$Message['To'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $To
     [array]$Message['CC'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $CC
     [array]$Message['BCC'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $BCC
@@ -298,9 +259,9 @@ function Send-ScriptMessage_MgGraph
     [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
 
     # Build Email
-    $EmailParams = @{
+    $EmailParams = [ordered]@{
         SaveToSentItems = $SaveToSentItems
-        Message = @{
+        Message = [ordered]@{
             From = $Message.From
             ReplyTo = $Message.ReplyTo
             ToRecipients = $Message.To
@@ -318,7 +279,6 @@ function Send-ScriptMessage_MgGraph
         $Sender = $Message.From.emailAddress.Address
     }
 
-
     # Check if using beta Graph API & Send Email.
     if (-not ($ScriptMessageConfig.MgGraph.MgProfile -eq 'beta'))
     {
@@ -330,14 +290,17 @@ function Send-ScriptMessage_MgGraph
     }
 
     # Collect Return Info
-    $SendScriptMessageResult = @{}
-    $SendScriptMessageResult.Error = $null
-    $SendScriptMessageResult.Status = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
+    $SendScriptMessageResult = [ordered]@{}
     $SendScriptMessageResult.MessageService = $Service
+    $SendScriptMessageResult.Status = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
+    $SendScriptMessageResult.Error = $null
     $SendScriptMessageResult.SentFrom = @{}
     $SendScriptMessageResult.SentFrom.Name = $From.Name
-    $SendScriptMessageResult.SentFrom.Address = $From.Address
-    $SendScriptMessageResult.SentTo = ($To + $CC + $BCC) | Where-Object {-not [String]::IsNullOrEmpty($_)} | Sort-Object -Unique
+    $SendScriptMessageResult.SentFrom.Address = $From.AddressObj
+    $SendScriptMessageResult.Recipients = [ordered]@{}
+    $SendScriptMessageResult.Recipients.To = ($Message.To).EmailAddress | Sort-Object $_.Value
+    $SendScriptMessageResult.Recipients.CC = ($Message.CC).EmailAddress | Sort-Object $_.Value
+    $SendScriptMessageResult.Recipients.BCC = ($Message.BCC).EmailAddress | Sort-Object $_.Value
 
     # If successfuul, return result info
     return $SendScriptMessageResult
