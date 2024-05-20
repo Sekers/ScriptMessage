@@ -101,7 +101,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('API', 'PowerShell', 'Microsoft Graph', 'Graph', "Email", "Chat", "Messaging")
+        Tags = @('API', 'PowerShell', 'MicrosoftGraph', 'Graph', "Email", "Chat", "Messaging")
 
         # A URL to the license for this module.
         LicenseUri = 'https://github.com/Sekers/ScriptMessage/blob/master/LICENSE'
