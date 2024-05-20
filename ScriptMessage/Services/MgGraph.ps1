@@ -234,6 +234,9 @@ function Send-ScriptMessage_MgGraph
         [string]$Sender
     )
 
+    # Set the Service ID.
+    $ServiceId = 'MgGraph'
+    
     # Set the necesasary configuration variables.
     $ScriptMessageConfig = Get-ScriptMessageConfig
 
@@ -291,7 +294,7 @@ function Send-ScriptMessage_MgGraph
 
     # Collect Return Info
     $SendScriptMessageResult = [ordered]@{}
-    $SendScriptMessageResult.MessageService = $Service
+    $SendScriptMessageResult.MessageService = $ServiceId
     $SendScriptMessageResult.Status = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
     $SendScriptMessageResult.Error = $null
     $SendScriptMessageResult.SentFrom = @{}
