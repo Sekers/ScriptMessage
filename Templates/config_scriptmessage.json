@@ -3,12 +3,12 @@
         "MgProfile": "v1.0",
         "MgPermissionType": "Application",
         "MgDisconnectWhenDone": false,
-        "MgTenantID": "",
-        "MgClientID": "",
-        "MgApp_AuthenticationType": "",
+        "MgTenantID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "MgClientID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "MgApp_AuthenticationType": "CertificateThumbprint",
         "MgApp_CertificatePath": "",
         "MgApp_CertificateName": "",
-        "MgApp_CertificateThumbprint": "",
+        "MgApp_CertificateThumbprint": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "MgApp_EncryptedCertificatePassword": "",
         "MgApp_EncryptedSecret": ""
     }
