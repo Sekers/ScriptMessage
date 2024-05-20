@@ -61,6 +61,7 @@ Function ConvertTo-IMicrosoftGraphRecipient
 
 function ConvertTo-IMicrosoftGraphItemBody
 {
+    [CmdletBinding()]
     param(
         [Parameter(
         Mandatory = $true,
@@ -438,8 +439,3 @@ Only cmdlets for the installed modules will be available for use.
         Default {throw "Invalid `'MgPermissionType`' value."}
     }
 }
-
-
-
-
-

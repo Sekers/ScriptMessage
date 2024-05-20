@@ -17,6 +17,8 @@ function Set-ScriptMessageConfigFilePath
         .EXAMPLE
         Set-ScriptMessageConfigFilePath -Path "$PSScriptRoot\Config\config_scriptmessage.json"
     #>
+    
+    [CmdletBinding()]
     param (
         [Parameter(
         Position=0,
