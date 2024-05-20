@@ -333,7 +333,13 @@ function Connect-ScriptMessage_MgGraph
         if (!(Get-Module -Name "Microsoft.Graph.Users.Actions"))
         {
             # Module is not available.
-            Write-Error "Please First Install the Microsoft.Graph Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
+            Write-Error @"
+Please First Install the Microsoft.Graph.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ ".
+Installing the main modules of the SDK, Microsoft.Graph, will install all sub modules for each module.
+Consider only installing the necessary modules, including Microsoft.Graph.Authentication which is installed by default when you opt
+to install the sub modules individually. For a list of available Microsoft Graph modules, use Find-Module Microsoft.Graph*.
+Only cmdlets for the installed modules will be available for use.
+"@
             Return
         }
     }
@@ -345,8 +351,8 @@ function Connect-ScriptMessage_MgGraph
         {
             # Module is not available.
             Write-Error @"
-Please First Install the Microsoft.Graph Module from https://www.powershellgallery.com/packages/Microsoft.Graph.Beta"/ .
-Installing the main modules of the SDK, Microsoft.Graph and Microsoft.Graph.Beta, will install all 38 sub modules for each module.
+Please First Install the Microsoft.Graph.Beta.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph.Beta/ ".
+Installing the main modules of the SDK, Microsoft.Graph.Beta, will install all sub modules for each module.
 Consider only installing the necessary modules, including Microsoft.Graph.Authentication which is installed by default when you opt
 to install the sub modules individually. For a list of available Microsoft Graph modules, use Find-Module Microsoft.Graph*.
 Only cmdlets for the installed modules will be available for use.
