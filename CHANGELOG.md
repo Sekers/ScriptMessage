@@ -1,5 +1,14 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.4](https://github.com/Sekers/ScriptMessage/tree/1.0.4) - (2024-05-21)
+
+### Fixes
+
+- Renamed 'Sender' parameters & variables to 'SenderId' since 'Sender' is an [automatic variable](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables) that is built into PowerShell and assigning to it might have undesired side effects in some circumstances.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.3](https://github.com/Sekers/ScriptMessage/tree/1.0.3) - (2024-05-21)
 
 ### Features
