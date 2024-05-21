@@ -6,6 +6,13 @@ enum MessagingService {
         MgGraph
 }
 
+# Public Enum
+# Name: MessageType
+enum MessageType {
+    Mail
+    Chat
+}
+
 # Import Private Functions
 $ScriptMessageFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1)
 Foreach($ScriptMessageFunction in $ScriptMessageFunctions)

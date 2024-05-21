@@ -27,8 +27,6 @@ Function Connect-ScriptMessage
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        #[ValidateSet("MgGraph")]
-        #[string]$Service,
         [MessagingService]$Service,
 
         [parameter(

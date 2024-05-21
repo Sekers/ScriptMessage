@@ -175,6 +175,12 @@ function Send-ScriptMessage_MgGraph
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
+        [MessageType[]]$Type,
+
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
         [pscustomobject]$From,
 
         [Parameter(
@@ -241,73 +247,89 @@ function Send-ScriptMessage_MgGraph
     # Set the necesasary configuration variables.
     $ScriptMessageConfig = Get-ScriptMessageConfig
 
-    # Convert Parameters to IMicrosoft*
-    $Message = @{}
-    $Message['From'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $From
-    [array]$Message['ReplyTo'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $ReplyTo
-    [array]$Message['To'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $To
-    [array]$Message['CC'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $CC
-    [array]$Message['BCC'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $BCC
-    if (-not [string]::IsNullOrEmpty($Body.Content))
+    # Send the message on each supported service specified.
+    foreach ($typeItem in $Type)
     {
-        if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+        switch ($typeItem)
         {
-            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
-        }
-        else
-        {
-            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
-        }
-    }
-
-    [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
-
-    # Build Email
-    $EmailParams = [ordered]@{
-        SaveToSentItems = $SaveToSentItems
-        Message = [ordered]@{
-            From = $Message.From
-            ReplyTo = $Message.ReplyTo
-            ToRecipients = $Message.To
-            CcRecipients = $Message.CC
-            BccRecipients = $Message.BCC
-            Subject = $Subject
-            Body = $Message.Body
-            Attachments = $Message.Attachment
-        }
-    }
+            Mail {  
+                # Convert Parameters to IMicrosoft*
+                $Message = @{}
+                $Message['From'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $From
+                [array]$Message['ReplyTo'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $ReplyTo
+                [array]$Message['To'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $To
+                [array]$Message['CC'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $CC
+                [array]$Message['BCC'] = ConvertTo-IMicrosoftGraphRecipient -EmailAddress $BCC
+                if (-not [string]::IsNullOrEmpty($Body.Content))
+                {
+                    if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+                    {
+                        [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
+                    }
+                    else
+                    {
+                        [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
+                    }
+                }
     
-    # Check For Separate UserID Value
-    if ([string]::IsNullOrEmpty($Sender))
-    {
-        $Sender = $Message.From.emailAddress.Address
+                [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
+    
+                # Build Email
+                $EmailParams = [ordered]@{
+                    SaveToSentItems = $SaveToSentItems
+                    Message = [ordered]@{
+                        From = $Message.From
+                        ReplyTo = $Message.ReplyTo
+                        ToRecipients = $Message.To
+                        CcRecipients = $Message.CC
+                        BccRecipients = $Message.BCC
+                        Subject = $Subject
+                        Body = $Message.Body
+                        Attachments = $Message.Attachment
+                    }
+                }
+                
+                # Check For Separate UserID Value
+                if ([string]::IsNullOrEmpty($Sender))
+                {
+                    $Sender = $Message.From.emailAddress.Address
+                }
+    
+                # Check if using beta Graph API & Send Email.
+                if (-not ($ScriptMessageConfig.MgGraph.MgProfile -eq 'beta'))
+                {
+                    $SendEmailMessageResult = Send-MgUserMail -UserId $Sender -BodyParameter $EmailParams -PassThru
+                }
+                else
+                {
+                    $SendEmailMessageResult = Send-MgBetaUserMail -UserId $Sender -BodyParameter $EmailParams -PassThru
+                }
+    
+                # Collect Return Info
+                $SendScriptMessageResult = [ordered]@{}
+                $SendScriptMessageResult.MessageService = $ServiceId
+                $SendScriptMessageResult.MessageType = $typeItem
+                $SendScriptMessageResult.Status = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
+                $SendScriptMessageResult.Error = $null
+                $SendScriptMessageResult.SentFrom = @{}
+                $SendScriptMessageResult.SentFrom.Name = $From.Name
+                $SendScriptMessageResult.SentFrom.Address = $From.AddressObj
+                $SendScriptMessageResult.Recipients = [ordered]@{}
+                $SendScriptMessageResult.Recipients.To = ($Message.To).EmailAddress | Sort-Object $_.Value
+                $SendScriptMessageResult.Recipients.CC = ($Message.CC).EmailAddress | Sort-Object $_.Value
+                $SendScriptMessageResult.Recipients.BCC = ($Message.BCC).EmailAddress | Sort-Object $_.Value
+    
+                # If successfuul, output result info
+                $SendScriptMessageResult
+            }
+            Chat {
+                Write-Warning -Message "The '$($typeItem)' message type has not yet been implemented for service '$($ServiceId)'."
+            }
+            Default {
+                Write-Warning -Message "'$($typeItem)' is an invalid message type for service '$($ServiceId)'."
+            }
+        }
     }
-
-    # Check if using beta Graph API & Send Email.
-    if (-not ($ScriptMessageConfig.MgGraph.MgProfile -eq 'beta'))
-    {
-        $SendEmailMessageResult = Send-MgUserMail -UserId $Sender -BodyParameter $EmailParams -PassThru
-    }
-    else
-    {
-        $SendEmailMessageResult = Send-MgBetaUserMail -UserId $Sender -BodyParameter $EmailParams -PassThru
-    }
-
-    # Collect Return Info
-    $SendScriptMessageResult = [ordered]@{}
-    $SendScriptMessageResult.MessageService = $ServiceId
-    $SendScriptMessageResult.Status = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
-    $SendScriptMessageResult.Error = $null
-    $SendScriptMessageResult.SentFrom = @{}
-    $SendScriptMessageResult.SentFrom.Name = $From.Name
-    $SendScriptMessageResult.SentFrom.Address = $From.AddressObj
-    $SendScriptMessageResult.Recipients = [ordered]@{}
-    $SendScriptMessageResult.Recipients.To = ($Message.To).EmailAddress | Sort-Object $_.Value
-    $SendScriptMessageResult.Recipients.CC = ($Message.CC).EmailAddress | Sort-Object $_.Value
-    $SendScriptMessageResult.Recipients.BCC = ($Message.BCC).EmailAddress | Sort-Object $_.Value
-
-    # If successfuul, return result info
-    return $SendScriptMessageResult
 }
 
 function Connect-ScriptMessage_MgGraph

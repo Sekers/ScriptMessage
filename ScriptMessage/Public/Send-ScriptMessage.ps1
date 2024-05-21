@@ -15,6 +15,8 @@ function Send-ScriptMessage
 
     .PARAMETER Service
     Specify the messaging service(s) to send the message from. You can specify more than one service to send the same message for redundancy or other purposes.
+    .PARAMETER Type
+    Optionally specify the type(s) of message(s) (mail, chat, etc.) to use when sending the message. Defaults to the 'Mail' service type. You can specify more than one message type to send the same message for redundancy or other purposes.
     .PARAMETER From
     The messaging address you are sending from. Alternatively, provide an object with the 'Address' property value set to the messaging address and, optionally, include a 'Name' property and corresponding value.
     .PARAMETER ReplyTo
@@ -57,7 +59,7 @@ function Send-ScriptMessage
         }
     }
 
-    Send-ScriptMessage -Service MgGraph @MessageArguments
+    Send-ScriptMessage -Service MgGraph -Type 'Mail' @MessageArguments
     .EXAMPLE 
     $MessageArguments = @{
         From = 'jdoe@domain.com'
@@ -69,7 +71,7 @@ function Send-ScriptMessage
         }
     }
 
-    Send-ScriptMessage -Service MgGraph @MessageArguments
+    Send-ScriptMessage -Service -Type 'Mail', 'Chat' MgGraph @MessageArguments
     .EXAMPLE
     $MessageArguments = @{
         From = @{
@@ -136,9 +138,13 @@ function Send-ScriptMessage
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        #[ValidateSet("MgGraph")]
-        #[string]$Service,
         [MessagingService[]]$Service,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [MessageType[]]$Type = 'Mail',
 
         [Parameter(
         Mandatory = $true,
@@ -211,6 +217,10 @@ function Send-ScriptMessage
         throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
     }
 
+    # Remove Message Service & Message Type duplicates.
+    $Service = $Service | Select-Object -Unique
+    $Type = $Type | Select-Object -Unique
+
     # Convert recipient types into properly formatted PSObject.
     $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
     [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo
@@ -248,6 +258,7 @@ function Send-ScriptMessage
                     Body = $Body
                     Attachment = $Attachment
                     Sender = $Sender
+                    Type = $Type
                 }
 
                 Send-ScriptMessage_MgGraph @SendMessageParameters
