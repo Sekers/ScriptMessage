@@ -1,5 +1,14 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.2](https://github.com/Sekers/ScriptMessage/tree/1.0.2) - (2024-05-21)
+
+### Fixes
+
+- Resolved issue with an internal function where a Microsoft Graph recipient returns empty when a recipient is inside an array of arrays.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.1](https://github.com/Sekers/ScriptMessage/tree/1.0.1) - (2024-05-20)
 
 ### Fixes
