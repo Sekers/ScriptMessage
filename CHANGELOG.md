@@ -1,5 +1,14 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.3](https://github.com/Sekers/ScriptMessage/tree/1.0.3) - (2024-05-21)
+
+### Features
+
+- Added an optional message type parameter to 'Send-ScriptMessage' to differentiate types of messages (chat, mail, etc.) for messages services that support multiple kinds of messages.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.2](https://github.com/Sekers/ScriptMessage/tree/1.0.2) - (2024-05-21)
 
 ### Fixes
