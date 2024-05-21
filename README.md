@@ -14,9 +14,12 @@
 
 PowerShell Module to Connect Scripts to Messaging Services (Email, Chat, etc.).
 
-ScriptMessage is designed to simplify the use of messaging services in PowerShell scripts. For example, you can take advantage of the Microsoft Graph SDK PowerShell module to sent email using the Graph API without having to learn all the object formatting that the API requires. You can also easily switch messaging services in your scripts by changing the service used without having to rewrite your scripts to use the new service.
+ScriptMessage is designed to simplify the use of messaging services in PowerShell scripts. For example, you can:
+- Take advantage of the Microsoft Graph SDK PowerShell module to send email messages using the Graph API without having to learn all the object formatting that the API requires.
+- Easily switch messaging services in your scripts by changing the service used without having to rewrite your scripts to use the new service.
+- Specify more than one service in a single command to send the same message multiple ways for redundancy or other purposes.
 
-Note: The module currently only supports the Microsoft Graph SDK PowerShell module, but other messaging services will be added in. Once a second service support is added, scripts can easily send messages from multiple services in one cmdlet call.
+Note: The module currently only supports the Microsoft Graph SDK PowerShell module, but other messaging services will be added in.
 
 ---
 
