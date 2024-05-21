@@ -4,7 +4,7 @@
 
 ### Features
 
-- Added an optional message type parameter to 'Send-ScriptMessage' to differentiate types of messages (chat, mail, etc.) for messages services that support multiple kinds of messages.
+- Added an optional message type parameter to 'Send-ScriptMessage' to differentiate types of messages (chat, mail, etc.) for message services that support multiple kinds of messages. Defaults to 'Mail' if not specified.
 
 Author: [**@Sekers**](https://github.com/Sekers)
 
