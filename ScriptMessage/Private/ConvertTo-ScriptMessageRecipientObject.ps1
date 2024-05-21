@@ -11,7 +11,7 @@ function ConvertTo-ScriptMessageRecipientObject
         [pscustomobject]$Recipient
     )
 
-    if ([string]::IsNullOrEmpty($Recipient))
+    if (([string]::IsNullOrEmpty($Recipient)) -and ($Recipient.Count -lt 1))
     {
         return $null
     }
