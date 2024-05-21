@@ -44,7 +44,7 @@ function Send-ScriptMessage
         - Content (Hashtable). Submit with a 'Name' key value set to the filename you want and a 'Content' key value as the data (encoded as a byte stream).
         - File path (String)
         - Directory path (String)
-    .PARAMETER Sender
+    .PARAMETER SenderId
     Specify the account used to send the message request. This might be different than the 'From' parameter in the case of "Send As', "Send on Behalf", delegated mailboxes, etc.
     If not specified, defaults to the address inside of the 'From' parameter.
 
@@ -91,7 +91,7 @@ function Send-ScriptMessage
             Content = "This is a test message.`n`nThank you!"
         }
         Attachment = @('C:\StuffToSend\', 'C:\Documents\AnotherFile.pdf')
-        Sender = 'senderaccount@domain.com'
+        SenderId = 'senderaccount@domain.com'
     }
 
     Send-ScriptMessage -Service MgGraph @MessageArguments
@@ -208,7 +208,7 @@ function Send-ScriptMessage
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [string]$Sender
+        [string]$SenderId
     )
 
     # Make sure that at least one of, To, CC, or BCC is provided.
@@ -257,7 +257,7 @@ function Send-ScriptMessage
                     Subject = $Subject
                     Body = $Body
                     Attachment = $Attachment
-                    Sender = $Sender
+                    SenderId = $SenderId
                     Type = $Type
                 }
 

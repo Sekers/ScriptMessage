@@ -32,7 +32,7 @@ Function ConvertTo-IMicrosoftGraphRecipient
             # Verify object contains 'Address' key or property.
             if ([string]::IsNullOrEmpty($address.AddressObj))
             {
-                throw "Improperly formatted sender, recipient, or reply to address."
+                throw "Improperly formatted from, recipient, or reply to address."
             }
 
             # Set 'Name' & update 'Address' (do 'Name' 1st!)
@@ -238,7 +238,7 @@ function Send-ScriptMessage_MgGraph
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [string]$Sender
+        [string]$SenderId
     )
 
     # Set the Service ID.
@@ -290,19 +290,19 @@ function Send-ScriptMessage_MgGraph
                 }
                 
                 # Check For Separate UserID Value
-                if ([string]::IsNullOrEmpty($Sender))
+                if ([string]::IsNullOrEmpty($SenderId))
                 {
-                    $Sender = $Message.From.emailAddress.Address
+                    $SenderId = $Message.From.emailAddress.Address
                 }
     
                 # Check if using beta Graph API & Send Email.
                 if (-not ($ScriptMessageConfig.MgGraph.MgProfile -eq 'beta'))
                 {
-                    $SendEmailMessageResult = Send-MgUserMail -UserId $Sender -BodyParameter $EmailParams -PassThru
+                    $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
                 }
                 else
                 {
-                    $SendEmailMessageResult = Send-MgBetaUserMail -UserId $Sender -BodyParameter $EmailParams -PassThru
+                    $SendEmailMessageResult = Send-MgBetaUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
                 }
     
                 # Collect Return Info
