@@ -1,5 +1,14 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.5](https://github.com/Sekers/ScriptMessage/tree/1.0.5) - (2024-05-22)
+
+### Features
+
+- Added in an "All" recipients field when returning message send results, for convenience.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.4](https://github.com/Sekers/ScriptMessage/tree/1.0.4) - (2024-05-21)
 
 ### Fixes
