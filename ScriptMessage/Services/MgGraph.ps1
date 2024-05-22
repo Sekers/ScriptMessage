@@ -315,11 +315,18 @@ function Send-ScriptMessage_MgGraph
                 $SendScriptMessageResult.SentFrom.Name = $From.Name
                 $SendScriptMessageResult.SentFrom.Address = $From.AddressObj
                 $SendScriptMessageResult.Recipients = [ordered]@{}
-                $SendScriptMessageResult.Recipients.To = ($Message.To).EmailAddress | Sort-Object $_.Value
-                $SendScriptMessageResult.Recipients.CC = ($Message.CC).EmailAddress | Sort-Object $_.Value
-                $SendScriptMessageResult.Recipients.BCC = ($Message.BCC).EmailAddress | Sort-Object $_.Value
+                $SendScriptMessageResult.Recipients.All = $null # Create this before populating for ordered list purposes.
+                [array]$SendScriptMessageResult.Recipients.To = @(($Message.To).EmailAddress | Sort-Object $_.Value)
+                [array]$SendScriptMessageResult.Recipients.CC = @(($Message.CC).EmailAddress | Sort-Object $_.Value)
+                [array]$SendScriptMessageResult.Recipients.BCC = @(($Message.BCC).EmailAddress | Sort-Object $_.Value)
+                [array]$SendScriptMessageResult.Recipients.All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
+                    [System.Linq.Enumerable]::ToList([psobject[]]$SendScriptMessageResult.Recipients.To).Address
+                    [System.Linq.Enumerable]::ToList([psobject[]]$SendScriptMessageResult.Recipients.CC).Address
+                    [System.Linq.Enumerable]::ToList([psobject[]]$SendScriptMessageResult.Recipients.BCC).Address
+                )
+                [array]$SendScriptMessageResult.Recipients.All = $SendScriptMessageResult.Recipients.All | Sort-Object -Unique # Remove duplicate items.
     
-                # If successfuul, output result info
+                # If successful, output result info.
                 $SendScriptMessageResult
             }
             Chat {
