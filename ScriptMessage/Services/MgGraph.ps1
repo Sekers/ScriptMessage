@@ -54,7 +54,7 @@ Function ConvertTo-IMicrosoftGraphRecipient
             else
             {
                 @{
-                    EmailAddress = @{
+                    EmailAddress = [ordered]@{
                         Name = $Name
                         Address = $address}
                 }
