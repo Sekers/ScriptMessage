@@ -1,12 +1,3 @@
-####################
-# Helper Functions #
-####################
-
-# None at this time.
-
-###################
-# Return Function #
-###################
 function Get-ScriptMessageContext
 {
     <#
@@ -35,33 +26,42 @@ function Get-ScriptMessageContext
         [MessagingService]$Service
     )
     
-    # Create the context object to return.
-    $ScriptMessageContext = New-Object System.Object
-
-    # Retrieve any common connection info across services.
-    $CommonConnectionInfo = [pscustomobject]@{
-        Service = $Service.ToString()
-    }
-    foreach ($infoItem in $($CommonConnectionInfo.PSObject.Properties))
+    begin
     {
-        $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
+        # Create the context object to return.
+        $ScriptMessageContext = New-Object System.Object
     }
 
-    # Retrieve connection information.
-    switch ($Service)
+    process
     {
-        MgGraph {
-            $MgContext = Get-MgContext
-            if ([string]::IsNullOrEmpty($MgContext))
-            {
-                return $null
-            }
-            foreach ($infoItem in $($MgContext.PSObject.Properties))
-            {
-                $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
+        # Retrieve any common connection info across services.
+        $CommonConnectionInfo = [pscustomobject]@{
+            Service = $Service.ToString()
+        }
+        foreach ($infoItem in $($CommonConnectionInfo.PSObject.Properties))
+        {
+            $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
+        }
+
+        # Retrieve connection information.
+        switch ($Service)
+        {
+            MgGraph {
+                $MgContext = Get-MgContext
+                if ([string]::IsNullOrEmpty($MgContext))
+                {
+                    return $null
+                }
+                foreach ($infoItem in $($MgContext.PSObject.Properties))
+                {
+                    $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
+                }
             }
         }
     }
-
-    return $ScriptMessageContext
+    
+    end
+    {
+        return $ScriptMessageContext
+    }
 }

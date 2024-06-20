@@ -28,20 +28,27 @@ function Get-ScriptMessageConfig
         [string]$Path = $scriptmessage_config_file_path # If not entered will see if it can pull path from this variable.
     )
     
-    # Make Sure Requested Path Isn't Null or Empty (better to catch it here than validating on the parameter of this function)
-    if ([string]::IsNullOrEmpty($Path))
+    begin {}
+
+    process
     {
-        throw "`'`$scriptmessage_config_file_path`' is not specified. Don't forget to first use the `'Set-ScriptMessageConfigFilePath`' cmdlet!"
+        # Make Sure Requested Path Isn't Null or Empty (better to catch it here than validating on the parameter of this function)
+        if ([string]::IsNullOrEmpty($Path))
+        {
+            throw "`'`$scriptmessage_config_file_path`' is not specified. Don't forget to first use the `'Set-ScriptMessageConfigFilePath`' cmdlet!"
+        }
+
+        # Get Config and Secrets
+        try
+        {
+            $ScriptMessageConfig = Get-Content -Path "$Path" -ErrorAction 'Stop' | ConvertFrom-Json
+            return $ScriptMessageConfig 
+        }
+        catch
+        {
+            throw "Can't find the JSON configuration file. Use 'Set-ScriptMessageConfigFilePath' to create one."
+        }
     }
 
-    # Get Config and Secrets
-    try
-    {
-        $ScriptMessageConfig = Get-Content -Path "$Path" -ErrorAction 'Stop' | ConvertFrom-Json
-        return $ScriptMessageConfig 
-    }
-    catch
-    {
-        throw "Can't find the JSON configuration file. Use 'Set-ScriptMessageConfigFilePath' to create one."
-    }
+    end {}
 }

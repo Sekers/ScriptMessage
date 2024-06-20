@@ -28,5 +28,12 @@ function Set-ScriptMessageConfigFilePath
         [string]$Path
     )
    
-    New-Variable -Name 'scriptmessage_config_file_path' -Value $Path -Scope Global -Force
+    begin {}
+
+    process
+    {
+        New-Variable -Name 'scriptmessage_config_file_path' -Value $Path -Scope Global -Force
+    }
+
+    end {}
 }

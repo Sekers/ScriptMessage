@@ -1,4 +1,4 @@
-Function Connect-ScriptMessage
+function Connect-ScriptMessage
 {
     <#
         .LINK
@@ -37,23 +37,32 @@ Function Connect-ScriptMessage
         [switch]$ReturnConnectionInfo
     )
 
-    # Set the necesasary configuration variables.
-    $ScriptMessageConfig = Get-ScriptMessageConfig
-    
-    # Set the connection parameters.
-    $ConnectionParameters = @{
-        ServiceConfig = $ScriptMessageConfig.$Service
-    }
-
-    # Connect to the proper service.
-    switch ($Service)
+    begin
     {
-        MgGraph {Connect-ScriptMessage_MGGraph @ConnectionParameters}
+        # Set the necesasary configuration variables.
+        $ScriptMessageConfig = Get-ScriptMessageConfig
+        
+        # Set the connection parameters.
+        $ConnectionParameters = @{
+            ServiceConfig = $ScriptMessageConfig.$Service
+        }
     }
 
-    # Return the connection information, if requested.
-    if ($ReturnConnectionInfo)
-    {  
-        return Get-ScriptMessageContext -Service $Service
+    process
+    {
+        # Connect to the proper service.
+        switch ($Service)
+        {
+            MgGraph {Connect-ScriptMessage_MGGraph @ConnectionParameters}
+        }
+    }
+
+    end
+    {
+        # Return the connection information, if requested.
+        if ($ReturnConnectionInfo)
+        {  
+            return Get-ScriptMessageContext -Service $Service
+        }
     }
 }
