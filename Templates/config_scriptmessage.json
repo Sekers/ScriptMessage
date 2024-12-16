@@ -1,7 +1,6 @@
 {
     "MgGraph": {
         "AllowableMessageTypes": ["Mail", "Chat"],
-        "MgProfile": "v1.0",
         "MgPermissionType": "Application",
         "MgDisconnectWhenDone": false,
         "MgTenantID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",

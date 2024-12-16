@@ -325,16 +325,9 @@ function Send-ScriptMessage_MgGraph
                         $SenderId = $Message.From.emailAddress.Address
                     }
         
-                    # Check if using beta Graph API & Send Email.
-                    if (-not ($ScriptMessageConfig.MgGraph.MgProfile -eq 'beta'))
-                    {
-                        $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
-                    }
-                    else
-                    {
-                        $SendEmailMessageResult = Send-MgBetaUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
-                    }
-        
+                    # Send Email.
+                    $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
+
                     # Collect Return Info
                     $SendScriptMessageResult = [ordered]@{}
                     $SendScriptMessageResult.MessageService = $ServiceId
@@ -385,25 +378,18 @@ function Connect-ScriptMessage_MgGraph
 
     begin
     {
-        # Get Graph Profile From Config
-        [string]$MgProfile = $ServiceConfig.MgProfile # 'beta' or 'v1.0'.
     }
 
     process
     {
-
-
-
         # Check For Microsoft.Graph Module
         # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
-        if (-not ($MgProfile -eq 'beta'))
+        Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue
+        Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
+        if (!(Get-Module -Name "Microsoft.Graph.Users.Actions") -or !(Get-Module -Name "Microsoft.Graph.Authentication"))
         {
-            Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue
-            Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
-            if (!(Get-Module -Name "Microsoft.Graph.Users.Actions"))
-            {
-                # Module is not available.
-                Write-Error @"
+            # Module is not available.
+            Write-Error @"
 Please First Install the Microsoft.Graph.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ ".
 Installing the main modules of the SDK, Microsoft.Graph, will install all sub modules for each module.
 Consider only installing the necessary modules, including Microsoft.Graph.Authentication which is installed by default when you opt
@@ -413,28 +399,7 @@ Only cmdlets for the installed modules will be available for use.
 Mail Requirements: Microsoft.Graph.Users.Actions
 Chat Requirements: Microsoft.Graph.Teams
 "@
-                Return
-            }
-        }
-        else
-        {
-            Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue # No beta version available for this required module.
-            Import-Module 'Microsoft.Graph.Beta.Users.Actions' -ErrorAction SilentlyContinue
-            if (!(Get-Module -Name "Microsoft.Graph.Beta.Users.Actions"))
-            {
-                # Module is not available.
-                Write-Error @"
-Please First Install the Microsoft.Graph.Beta.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph.Beta/ ".
-Installing the main modules of the SDK, Microsoft.Graph.Beta, will install all sub modules for each module.
-Consider only installing the necessary modules, including Microsoft.Graph.Authentication which is installed by default when you opt
-to install the sub modules individually. For a list of available Microsoft Graph modules, use Find-Module Microsoft.Graph*.
-Only cmdlets for the installed modules will be available for use.
-
-Mail Requirements: Microsoft.Graph.Beta.Users.Actions
-Chat Requirements: Microsoft.Graph.Beta.Teams
-"@
-                Return
-            }
+            Return
         }
 
         # Connect to the Microsoft Graph API.
