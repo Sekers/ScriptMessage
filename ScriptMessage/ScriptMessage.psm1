@@ -15,7 +15,7 @@ enum MessageType {
 
 # Public Class
 class MessageServiceType {
-    [MessagingService]$Service
+    [MessagingService[]]$Service
     [MessageType[]]$Type
 }
 

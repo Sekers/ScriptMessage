@@ -135,16 +135,25 @@ function Send-ScriptMessage
     [CmdletBinding()]
     param(
         [Parameter(
+        ParameterSetName = 'ServiceAndTypeSeparate',
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
         [MessagingService[]]$Service,
 
         [Parameter(
+        ParameterSetName = 'ServiceAndTypeSeparate',
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
         [MessageType[]]$Type = 'Mail',
+
+        [Parameter(
+        ParameterSetName = 'ServiceAndTypeCombined',
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [MessageServiceType[]]$ServiceType,
 
         [Parameter(
         Mandatory = $true,
@@ -213,15 +222,17 @@ function Send-ScriptMessage
 
     begin
     {
+        # Set the necessary configuration variables.
+        $ScriptMessageConfig = Get-ScriptMessageConfig
+    }
+
+    process
+    {
         # Make sure that at least one of, To, CC, or BCC is provided.
         if ([string]::IsNullOrEmpty($To) -and [string]::IsNullOrEmpty($CC) -and [string]::IsNullOrEmpty($BCC))
         {
             throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
         }
-
-        # Remove Message Service & Message Type duplicates.
-        $Service = $Service | Select-Object -Unique
-        $Type = $Type | Select-Object -Unique
 
         # Convert recipient types into properly formatted PSObject.
         $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
@@ -233,48 +244,58 @@ function Send-ScriptMessage
         # Convert body into properly formatted PSObject
         $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
 
-        # Set the necessary configuration variables.
-        $ScriptMessageConfig = Get-ScriptMessageConfig
-    }
-
-    process
-    {
-        foreach ($serviceItem in $Service)
+        if ($null -ne $Service) # If ServiceAndTypeSeparate
         {
-            # Set the connection parameters.
-            $ConnectionParameters = @{
-                ServiceConfig = $ScriptMessageConfig.$serviceItem
+            # Remove message service & message type duplicates.
+            $Service = $Service | Select-Object -Unique
+            $Type = $Type | Select-Object -Unique
+
+            # Create the ServiceType class object\hash.
+            [MessageServiceType]$ServiceType = @{
+                Service = $Service
+                Type    = $Type
             }
-    
-            # Connect to the messaging service, if necessary (e.g., API service).
-            Connect-ScriptMessage -Service $serviceItem -ErrorAction Stop
-    
-            switch ($serviceItem)
+        }
+
+        foreach ($serviceTypeObj in $ServiceType)
+        {
+            foreach ($serviceItem in $serviceTypeObj.Service)
             {
-                'MgGraph'   {
-                    $SendMessageParameters = [ordered]@{
-                        From = $From
-                        ReplyTo = $ReplyTo
-                        To = $To
-                        CC = $CC
-                        BCC = $BCC
-                        SaveToSentItems = $SaveToSentItems
-                        Subject = $Subject
-                        Body = $Body
-                        Attachment = $Attachment
-                        SenderId = $SenderId
-                        Type = $Type
-                    }
-    
-                    Send-ScriptMessage_MgGraph @SendMessageParameters
-    
-                    # Disconnect from Microsoft Graph API, if enabled in config.
-                    if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)
-                    {
-                        $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
-                    }
+                # Set the connection parameters.
+                $ConnectionParameters = @{
+                    ServiceConfig = $ScriptMessageConfig.$serviceItem
                 }
-                Default {throw "Invalid `'Service`' value."}
+        
+                # Connect to the messaging service, if necessary (e.g., API service).
+                Connect-ScriptMessage -Service $serviceItem -ErrorAction Stop
+        
+                switch ($serviceItem)
+                {
+                    'MgGraph'   {
+                        $SendMessageParameters = [ordered]@{
+                            From = $From
+                            ReplyTo = $ReplyTo
+                            To = $To
+                            CC = $CC
+                            BCC = $BCC
+                            SaveToSentItems = $SaveToSentItems
+                            Subject = $Subject
+                            Body = $Body
+                            Attachment = $Attachment
+                            SenderId = $SenderId
+                            Type = $serviceTypeObj.Type
+                        }
+        
+                        Send-ScriptMessage_MgGraph @SendMessageParameters
+        
+                        # Disconnect from Microsoft Graph API, if enabled in config.
+                        if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)
+                        {
+                            $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
+                        }
+                    }
+                    Default {throw "Invalid `'Service`' value."}
+                }
             }
         }
     }
