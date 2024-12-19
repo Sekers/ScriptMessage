@@ -233,7 +233,7 @@ function Send-ScriptMessage
         # Convert body into properly formatted PSObject
         $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
 
-        # Set the necesasary configuration variables.
+        # Set the necessary configuration variables.
         $ScriptMessageConfig = Get-ScriptMessageConfig
     }
 

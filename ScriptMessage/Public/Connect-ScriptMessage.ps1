@@ -39,7 +39,7 @@ function Connect-ScriptMessage
 
     begin
     {
-        # Set the necesasary configuration variables.
+        # Set the necessary configuration variables.
         $ScriptMessageConfig = Get-ScriptMessageConfig
         
         # Set the connection parameters.

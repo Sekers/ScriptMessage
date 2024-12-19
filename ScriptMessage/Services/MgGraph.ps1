@@ -271,7 +271,7 @@ function Send-ScriptMessage_MgGraph
         # Set the Service ID.
         $ServiceId = 'MgGraph'
         
-        # Set the necesasary configuration variables.
+        # Set the necessary configuration variables.
         $ScriptMessageConfig = Get-ScriptMessageConfig
     }
 
