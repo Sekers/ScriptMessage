@@ -13,6 +13,12 @@ enum MessageType {
     Chat
 }
 
+# Public Class
+class MessageServiceType {
+    [MessagingService]$Service
+    [MessageType[]]$Type
+}
+
 # Import Private Functions
 $ScriptMessageFunctions = @(Get-ChildItem -Path $PSScriptRoot\Private\*.ps1)
 Foreach($ScriptMessageFunction in $ScriptMessageFunctions)
