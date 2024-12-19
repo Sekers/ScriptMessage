@@ -3,7 +3,7 @@
 # Public Enum
 # Name: MessagingService
 enum MessagingService {
-        MgGraph
+    MgGraph
 }
 
 # Public Enum
