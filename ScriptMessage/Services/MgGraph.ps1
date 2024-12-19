@@ -476,19 +476,8 @@ Chat Requirements: Microsoft.Graph.Teams
                     }
                     ClientSecret {
                         $MgApp_EncryptedSecret = $ServiceConfig.MgApp_EncryptedSecret
-                        $MgApp_Secret = [System.Net.NetworkCredential]::new("", $($MgApp_EncryptedSecret | ConvertTo-SecureString)).Password # Can only be decrypted by the same AD account on the same computer.
-                        $Body =  @{
-                            Grant_Type    = "client_credentials"
-                            Scope         = "https://graph.microsoft.com/.default"
-                            Client_Id     = $MgClientID
-                            Client_Secret = $MgApp_Secret
-                        }
-                        $Connection = Invoke-RestMethod `
-                            -Uri https://login.microsoftonline.com/$MgTenantID/oauth2/v2.0/token `
-                            -Method POST `
-                            -Body $Body
-                        $AccessToken = $Connection.access_token
-                        $null = Connect-MgGraph -AccessToken $AccessToken
+                        $ClientSecretCredential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $MgClientID, $($MgApp_EncryptedSecret | ConvertTo-SecureString)
+                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientSecretCredential $ClientSecretCredential
                     }
                     Default {throw "Invalid `'MgApp_AuthenticationType`' value."}
                 }
