@@ -1,5 +1,25 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.6](https://github.com/Sekers/ScriptMessage/tree/1.0.6) - (2024-12-19)
+
+### Fixes
+
+- Support for Client Secret authentication in Microsoft Graph 2.x and newer.
+
+### Features
+
+- Added in an "AllowableMessageTypes" configuration setting for specific services to configure which types of messaging (Mail, Chat, etc.) are available for use with those services.
+
+### Other
+
+- BREAKING CHANGE: Removed support for Microsoft Graph SDK version 1.x when using Client Secret authentication. Use version 2.x of the SDK or newer.
+- Removed Graph SDK beta support since the way beta works has been changed by Microsoft and supporting it adds unnecessary complexity.
+- Adjusted code formatting to include Begin\End process blocks to better accommodate future code updates.
+- Minor code adjustments and spelling fixes to assist with debugging.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.5](https://github.com/Sekers/ScriptMessage/tree/1.0.5) - (2024-05-22)
 
 ### Features
