@@ -259,43 +259,40 @@ function Send-ScriptMessage
 
         foreach ($serviceTypeObj in $ServiceType)
         {
-            foreach ($serviceItem in $serviceTypeObj.Service)
+            # Set the connection parameters.
+            $ConnectionParameters = @{
+                ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
+            }
+    
+            # Connect to the messaging service, if necessary (e.g., API service).
+            Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
+    
+            switch ($($serviceTypeObj.Service))
             {
-                # Set the connection parameters.
-                $ConnectionParameters = @{
-                    ServiceConfig = $ScriptMessageConfig.$serviceItem
-                }
-        
-                # Connect to the messaging service, if necessary (e.g., API service).
-                Connect-ScriptMessage -Service $serviceItem -ErrorAction Stop
-        
-                switch ($serviceItem)
-                {
-                    'MgGraph'   {
-                        $SendMessageParameters = [ordered]@{
-                            From = $From
-                            ReplyTo = $ReplyTo
-                            To = $To
-                            CC = $CC
-                            BCC = $BCC
-                            SaveToSentItems = $SaveToSentItems
-                            Subject = $Subject
-                            Body = $Body
-                            Attachment = $Attachment
-                            SenderId = $SenderId
-                            Type = $serviceTypeObj.Type
-                        }
-        
-                        Send-ScriptMessage_MgGraph @SendMessageParameters
-        
-                        # Disconnect from Microsoft Graph API, if enabled in config.
-                        if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)
-                        {
-                            $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
-                        }
+                'MgGraph'   {
+                    $SendMessageParameters = [ordered]@{
+                        From = $From
+                        ReplyTo = $ReplyTo
+                        To = $To
+                        CC = $CC
+                        BCC = $BCC
+                        SaveToSentItems = $SaveToSentItems
+                        Subject = $Subject
+                        Body = $Body
+                        Attachment = $Attachment
+                        SenderId = $SenderId
+                        Type = $serviceTypeObj.Type
                     }
-                    Default {throw "Invalid `'Service`' value."}
+    
+                    Send-ScriptMessage_MgGraph @SendMessageParameters
+    
+                    # Disconnect from Microsoft Graph API, if enabled in config.
+                    if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)
+                    {
+                        $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
+                    }
                 }
+                Default {throw "Invalid `'Service`' value."}
             }
         }
     }
