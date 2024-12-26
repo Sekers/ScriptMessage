@@ -270,9 +270,6 @@ function Send-ScriptMessage_MgGraph
     {
         # Set the Service ID.
         $ServiceId = 'MgGraph'
-        
-        # Set the necessary configuration variables.
-        $ScriptMessageConfig = Get-ScriptMessageConfig
     }
 
     process
@@ -329,26 +326,36 @@ function Send-ScriptMessage_MgGraph
                     $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
 
                     # Collect Return Info
-                    $SendScriptMessageResult = [ordered]@{}
-                    $SendScriptMessageResult.MessageService = $ServiceId
-                    $SendScriptMessageResult.MessageType = $typeItem
-                    $SendScriptMessageResult.Status = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
-                    $SendScriptMessageResult.Error = $null
-                    $SendScriptMessageResult.SentFrom = @{}
-                    $SendScriptMessageResult.SentFrom.Name = $From.Name
-                    $SendScriptMessageResult.SentFrom.Address = $From.AddressObj
-                    $SendScriptMessageResult.Recipients = [ordered]@{}
-                    $SendScriptMessageResult.Recipients.All = $null # Create this before populating for ordered list purposes.
-                    [array]$SendScriptMessageResult.Recipients.To = @(($Message.To).EmailAddress | Sort-Object $_.Value)
-                    [array]$SendScriptMessageResult.Recipients.CC = @(($Message.CC).EmailAddress | Sort-Object $_.Value)
-                    [array]$SendScriptMessageResult.Recipients.BCC = @(($Message.BCC).EmailAddress | Sort-Object $_.Value)
-                    [array]$SendScriptMessageResult.Recipients.All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
-                        [System.Linq.Enumerable]::ToList([psobject[]]$SendScriptMessageResult.Recipients.To).Address
-                        [System.Linq.Enumerable]::ToList([psobject[]]$SendScriptMessageResult.Recipients.CC).Address
-                        [System.Linq.Enumerable]::ToList([psobject[]]$SendScriptMessageResult.Recipients.BCC).Address
+                    $SendScriptMessageResult_SentFrom = [PSCustomObject]@{
+                        Name    = $From.Name
+                        Address = $From.AddressObj
+                    }
+
+                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in ($Message.To).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
+                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in ($Message.CC).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
+                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in ($Message.BCC).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
+                    [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
                     )
-                    [array]$SendScriptMessageResult.Recipients.All = $SendScriptMessageResult.Recipients.All | Sort-Object -Unique # Remove duplicate items.
-        
+                    [array]$SendScriptMessageResult_Recipients_All = $SendScriptMessageResult_Recipients_All | Sort-Object -Unique # Remove duplicate items.
+                    $SendScriptMessageResult_Recipients = [PSCustomObject]@{
+                            To = $SendScriptMessageResult_Recipients_To
+                            CC = $SendScriptMessageResult_Recipients_CC
+                            BCC = $SendScriptMessageResult_Recipients_BCC
+                            All = $SendScriptMessageResult_Recipients_All
+                    }
+
+                    $SendScriptMessageResult = [PSCustomObject]@{
+                        MessageService = $ServiceId
+                        MessageType    = $typeItem
+                        Status         = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
+                        Error          = $null
+                        SentFrom       = $SendScriptMessageResult_SentFrom
+                        Recipients = $SendScriptMessageResult_Recipients
+                    }
+
                     # If successful, output result info.
                     $SendScriptMessageResult
                 }

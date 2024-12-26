@@ -135,16 +135,25 @@ function Send-ScriptMessage
     [CmdletBinding()]
     param(
         [Parameter(
+        ParameterSetName = 'ServiceAndTypeSeparate',
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
         [MessagingService[]]$Service,
 
         [Parameter(
+        ParameterSetName = 'ServiceAndTypeSeparate',
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
         [MessageType[]]$Type = 'Mail',
+
+        [Parameter(
+        ParameterSetName = 'ServiceAndTypeCombined',
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [MessageServiceType[]]$ServiceType,
 
         [Parameter(
         Mandatory = $true,
@@ -213,15 +222,17 @@ function Send-ScriptMessage
 
     begin
     {
+        # Set the necessary configuration variables.
+        $ScriptMessageConfig = Get-ScriptMessageConfig
+    }
+
+    process
+    {
         # Make sure that at least one of, To, CC, or BCC is provided.
         if ([string]::IsNullOrEmpty($To) -and [string]::IsNullOrEmpty($CC) -and [string]::IsNullOrEmpty($BCC))
         {
             throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
         }
-
-        # Remove Message Service & Message Type duplicates.
-        $Service = $Service | Select-Object -Unique
-        $Type = $Type | Select-Object -Unique
 
         # Convert recipient types into properly formatted PSObject.
         $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
@@ -233,23 +244,30 @@ function Send-ScriptMessage
         # Convert body into properly formatted PSObject
         $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
 
-        # Set the necessary configuration variables.
-        $ScriptMessageConfig = Get-ScriptMessageConfig
-    }
+        if ($null -ne $Service) # If ServiceAndTypeSeparate
+        {
+            # Remove message service & message type duplicates.
+            $Service = $Service | Select-Object -Unique
+            $Type = $Type | Select-Object -Unique
 
-    process
-    {
-        foreach ($serviceItem in $Service)
+            # Create the ServiceType class object\hash.
+            [MessageServiceType]$ServiceType = @{
+                Service = $Service
+                Type    = $Type
+            }
+        }
+
+        foreach ($serviceTypeObj in $ServiceType)
         {
             # Set the connection parameters.
             $ConnectionParameters = @{
-                ServiceConfig = $ScriptMessageConfig.$serviceItem
+                ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
             }
     
             # Connect to the messaging service, if necessary (e.g., API service).
-            Connect-ScriptMessage -Service $serviceItem -ErrorAction Stop
+            Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
     
-            switch ($serviceItem)
+            switch ($($serviceTypeObj.Service))
             {
                 'MgGraph'   {
                     $SendMessageParameters = [ordered]@{
@@ -263,7 +281,7 @@ function Send-ScriptMessage
                         Body = $Body
                         Attachment = $Attachment
                         SenderId = $SenderId
-                        Type = $Type
+                        Type = $serviceTypeObj.Type
                     }
     
                     Send-ScriptMessage_MgGraph @SendMessageParameters

@@ -3,7 +3,7 @@
 # Public Enum
 # Name: MessagingService
 enum MessagingService {
-        MgGraph
+    MgGraph
 }
 
 # Public Enum
@@ -11,6 +11,12 @@ enum MessagingService {
 enum MessageType {
     Mail
     Chat
+}
+
+# Public Class
+class MessageServiceType {
+    [MessagingService[]]$Service
+    [MessageType[]]$Type
 }
 
 # Import Private Functions

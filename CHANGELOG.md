@@ -1,5 +1,18 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.7](https://github.com/Sekers/ScriptMessage/tree/1.0.7) - (2024-12-26)
+
+### Features
+
+- New messaging class "MessageServiceType" and corresponding parameters for the Send-ScriptMessage Cmdlet to allow multiple/combined service & type parameters in one call.
+
+### Other
+
+- Results returned from Send-ScriptMessage has recipients adjusted from Hashtables to PSCustomObjects. This better handles collections (arrays) of addresses than hashtables being returned. Originally it was hashtables to mimic what Graph uses but that's not great for our purpose.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.6](https://github.com/Sekers/ScriptMessage/tree/1.0.6) - (2024-12-19)
 
 ### Fixes
