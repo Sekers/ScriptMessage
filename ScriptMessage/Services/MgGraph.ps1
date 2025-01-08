@@ -448,6 +448,14 @@ Chat Requirements: Microsoft.Graph.Teams
                 switch ($MgApp_AuthenticationType)
                 {
                     CertificateFile {
+                        # This is only supported using PowerShell 7.4 and later because 5.1 is missing the necessary parameters when using 'Get-PfxCertificate'.
+                        if ($PSVersionTable.PSVersion -lt [Version]'7.4')
+                        {
+                            $NewMessage = "Connecting to Microsoft Graph using a certificate file is only supported with PowerShell version 7.4 and later."
+                            Write-PSFMessage -Level Error $NewMessage
+                            throw $NewMessage
+                        }
+                        
                         $MgApp_CertificatePath = $ExecutionContext.InvokeCommand.ExpandString($ServiceConfig.MgApp_CertificatePath)
 
                         # Try accessing private key certificate without password using current process credentials.
