@@ -50,7 +50,7 @@ function Get-ScriptMessageContext
                 $MgContext = Get-MgContext
                 if ([string]::IsNullOrEmpty($MgContext))
                 {
-                    return $null
+                    break # Terminate the switch statement.
                 }
                 foreach ($infoItem in $($MgContext.PSObject.Properties))
                 {
