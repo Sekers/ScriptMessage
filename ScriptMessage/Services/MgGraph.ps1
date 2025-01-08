@@ -393,7 +393,8 @@ function Connect-ScriptMessage_MgGraph
         # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
         Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue
         Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
-        if (!(Get-Module -Name "Microsoft.Graph.Users.Actions") -or !(Get-Module -Name "Microsoft.Graph.Authentication"))
+        Import-Module 'Microsoft.Graph.Teams' -ErrorAction SilentlyContinue
+        if (-not (Get-Module -Name "Microsoft.Graph.Authentication"))
         {
             # Module is not available.
             Write-Error @"
@@ -502,4 +503,9 @@ Chat Requirements: Microsoft.Graph.Teams
     }
 
     end {}
+}
+
+function Disconnect-ScriptMessage_MGGraph
+{
+    return Disconnect-MgGraph
 }
