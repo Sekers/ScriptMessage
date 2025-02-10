@@ -217,7 +217,20 @@ function Send-ScriptMessage
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [string]$SenderId
+        [string]$SenderId,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [ChatType]$ChatType,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [ValidateSet($null, $true, $false)]
+        [Object]$IncludeBCCInGroupChat # Is an object so it can be set to $null
     )
 
     begin
@@ -263,6 +276,16 @@ function Send-ScriptMessage
             $ConnectionParameters = @{
                 ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
             }
+
+            # Set default values if not specified by a parameter.
+            if (-not $ChatType)
+            {
+                [ChatType]$ChatType = $ConnectionParameters.ServiceConfig.ChatType
+            }
+            if (-not $IncludeBCCInGroupChat)
+            {
+                [bool]$IncludeBCCInGroupChat = $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
+            }
     
             # Connect to the messaging service, if necessary (e.g., API service).
             Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
@@ -282,6 +305,8 @@ function Send-ScriptMessage
                         Attachment = $Attachment
                         SenderId = $SenderId
                         Type = $serviceTypeObj.Type
+                        ChatType = $ChatType
+                        IncludeBCCInGroupChat = $IncludeBCCInGroupChat
                     }
     
                     Send-ScriptMessage_MgGraph @SendMessageParameters

@@ -13,6 +13,13 @@ enum MessageType {
     Chat
 }
 
+# Public Enum
+# Name: ChatType
+enum ChatType {
+    OneOnOne
+    Group
+}
+
 # Public Class
 class MessageServiceType {
     [MessagingService[]]$Service
