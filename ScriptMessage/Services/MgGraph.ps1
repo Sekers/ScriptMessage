@@ -486,6 +486,9 @@ function Send-ScriptMessage_MgGraph
         # Send the message on each supported service specified.
         foreach ($typeItem in $Type)
         {
+            # Reset Warnings
+            $MgWarningMessages = @()
+
             switch ($typeItem)
             {
                 Mail {  
@@ -539,10 +542,27 @@ function Send-ScriptMessage_MgGraph
                         Name    = $From.Name
                         Address = $From.AddressObj
                     }
-
-                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in ($Message.To).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
-                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in ($Message.CC).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
-                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in ($Message.BCC).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
+                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in $To)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in $CC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in $BCC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
                     [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
                         [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
                         [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
@@ -568,14 +588,19 @@ function Send-ScriptMessage_MgGraph
                     # If successful, output result info.
                     $SendScriptMessageResult
                 }
-                Chat { # TODO MgChat: If application permissions, then do a bot message. Maybe for delegated give option of direct or bot message.
+                Chat{ # TODO MgChat: If application permissions, then do a bot message. Maybe for delegated give option of direct or bot message.
                     # Application CHAT permissions are only supported for migration into a Teams Channel.
                     $ScriptMessageConfig = Get-ScriptMessageConfig
                     if ($ScriptMessageConfig.$ServiceId.MgPermissionType -eq 'Application')
                     {
-                        Write-Warning -Message "Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
+                        $NewMessage = "Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
+                        Write-Warning -Message $NewMessage
+                        $MgWarningMessages += "$NewMessage"
                         continue
                     }
+
+                    # Convert Attachment to IMicrosoftGraphAttachment # TODO: Support Chat attachments
+                    [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
 
                     # Check For Separate 'SenderID' Value. Make equal to 'From' if not provided.
                     if ([string]::IsNullOrEmpty($SenderId))
@@ -586,7 +611,9 @@ function Send-ScriptMessage_MgGraph
                     # Make sure SenderID is equal to From address because Microsoft Graph Chat doesn't support sending on behalf of others.
                     if ($SenderId -ne $From.AddressObj)
                     {
-                        Write-Warning -Message "Microsoft Graph does not support sending Chat messages on behalf of others."
+                        $NewMessage = "Microsoft Graph does not support sending Chat messages on behalf of others."
+                        Write-Warning -Message $NewMessage
+                        $MgWarningMessages += "$NewMessage"
                         continue
                     }
 
@@ -622,7 +649,9 @@ function Send-ScriptMessage_MgGraph
                         {
                             if ($chatRecipient_BCC -notin $AllChatParticipants)
                             {
-                                Write-Warning -Message "The following BCC recipient is not included in the group chat: $chatRecipient_BCC"
+                                $NewMessage = "The following BCC recipient is not included in the group chat: $chatRecipient_BCC"
+                                Write-Warning -Message $NewMessage
+                                $MgWarningMessages += "$NewMessage"
                             }
                         }
                     }
@@ -648,7 +677,7 @@ function Send-ScriptMessage_MgGraph
                     # Create a new chat object & Send Message
                     $Member_SenderID = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $SenderId)
 
-                    switch ($ChatType) # TODO: Create $SendScriptMessageResult and return it, similar to for email.
+                    switch ($ChatType)
                     {
                         OneOnOne
                         {
@@ -663,7 +692,9 @@ function Send-ScriptMessage_MgGraph
                                 }
                                 catch
                                 {
-                                    Write-Warning -Message "Cannot create a chat with the recipient '$($chatRecipient)'."
+                                    $NewMessage = "Cannot create a chat with the recipient '$($chatRecipient)'."
+                                    Write-Warning -Message $NewMessage
+                                    $MgWarningMessages += "$NewMessage"
                                 }
                             }
                         }
@@ -705,7 +736,7 @@ function Send-ScriptMessage_MgGraph
                                 }
                             }
 
-                            # Send the message; create a new chat group if needed.
+                            # Send the chat message; create a new chat group if needed.
                             if (-not $LatestExistingGroupChatMatch)
                             {
                                 try
@@ -716,7 +747,9 @@ function Send-ScriptMessage_MgGraph
                                 }
                                 catch
                                 {
-                                    Write-Warning -Message "Cannot create a new Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
+                                    $NewMessage = "Cannot create a new Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
+                                    Write-Warning -Message $NewMessage
+                                    $MgWarningMessages += "$NewMessage"
                                 }
                             }
                             else
@@ -726,6 +759,76 @@ function Send-ScriptMessage_MgGraph
                             }
                         }
                     }
+
+                    # Collect Return Info
+                    $SendScriptMessageResult_SentFrom = [PSCustomObject]@{
+                        Name    = $From.Name
+                        Address = $From.AddressObj
+                    }
+                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in $To)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in $CC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in $BCC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
+                    )
+                    [array]$SendScriptMessageResult_Recipients_All = $SendScriptMessageResult_Recipients_All | Sort-Object -Unique # Remove duplicate items.
+                    [bool]$SendScriptMessageResult_Recipients_IncludeBCCInGroupChat = $IncludeBCCInGroupChat
+                    $SendScriptMessageResult_Recipients = [PSCustomObject]@{
+                            To = $SendScriptMessageResult_Recipients_To
+                            CC = $SendScriptMessageResult_Recipients_CC
+                            BCC = $SendScriptMessageResult_Recipients_BCC
+                            All = $SendScriptMessageResult_Recipients_All
+                            IncludeBCCInGroupChat = $SendScriptMessageResult_Recipients_IncludeBCCInGroupChat
+                    }
+
+                    # Compile Caught Errors and Warnings
+                    if ($MgWarningMessages.Count -gt 0)
+                    {
+                        [array]$SendScriptMessageResult_Error = foreach ($mgWarningMessage in $MgWarningMessages)
+                        {
+                            [PSCustomObject]@{
+                                Type    = 'Warning'
+                                Message = $mgWarningMessage
+                            }
+                        }
+                    }
+                    else
+                    {
+                        $SendScriptMessageResult_Error = $null
+                    }
+                    
+                    $SendScriptMessageResult = [PSCustomObject]@{
+                        MessageService = $ServiceId
+                        MessageType    = $typeItem
+                        ChatType        = $ChatType
+                        Status         = $SendChatMessageResult
+                        Error          = $SendScriptMessageResult_Error
+                        SentFrom       = $SendScriptMessageResult_SentFrom
+                        Recipients = $SendScriptMessageResult_Recipients
+                    }
+
+                    # If successful, output result info.
+                    $SendScriptMessageResult
                 }
                 Default {
                     Write-Warning -Message "'$($typeItem)' is an invalid message type for service '$($ServiceId)'."
