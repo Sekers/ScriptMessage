@@ -706,22 +706,23 @@ function Send-ScriptMessage_MgGraph
                             }
 
                             # Send the message; create a new chat group if needed.
-                            try
+                            if (-not $LatestExistingGroupChatMatch)
                             {
-                                if (-not $LatestExistingGroupChatMatch)
+                                try
                                 {
                                     $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
                                     $ChatToUse = $NewChatResult
+                                    $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
                                 }
-                                else
+                                catch
                                 {
-                                    $ChatToUse = $LatestExistingGroupChatMatch
+                                    Write-Warning -Message "Cannot create a Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
                                 }
-                                $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
                             }
-                            catch
+                            else
                             {
-                                Write-Warning -Message "Cannot create a chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
+                                $ChatToUse = $LatestExistingGroupChatMatch
+                                $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
                             }
                         }
                     }
