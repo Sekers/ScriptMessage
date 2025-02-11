@@ -716,7 +716,7 @@ function Send-ScriptMessage_MgGraph
                                 }
                                 catch
                                 {
-                                    Write-Warning -Message "Cannot create a Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
+                                    Write-Warning -Message "Cannot create a new Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
                                 }
                             }
                             else
