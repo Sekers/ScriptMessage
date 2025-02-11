@@ -23,7 +23,8 @@ ScriptMessage is designed to simplify the use of messaging services in PowerShel
 ## Currently Supported Services
 
 - [**Microsoft Graph SDK PowerShell:**](https://learn.microsoft.com/en-us/powershell/microsoftgraph/overview?view=graph-powershell-1.0) Take advantage of the Microsoft Graph SDK PowerShell module to send email and chat messages using the Graph API without having to learn all the object formatting that the API requires (which unfortunately the SDK doesn't simplify).
-  - **Note:** Since the Microsoft Graph API only supports Teams Chat when using [delegated permissions](https://learn.microsoft.com/en-us/graph/permissions-overview), we are looking into [Teams Bots](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/overview) support for future releases.
+  - Since the Microsoft Graph API only supports Teams Chat when using delegated [permissions](https://learn.microsoft.com/en-us/graph/permissions-overview), we are looking into [Teams Bots](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/overview) support for future releases to allow for application permissions.
+  - Currently, the ScriptMessage module only supports one-on-one and group chats. Teams Channel chats will be enabled in a future release.
 - [**Mailozaurr:**](https://github.com/EvotecIT/MailoZaurr) Support is planned in future releases. Mailozaurr is a PowerShell module that aims to provide SMTP, POP3, IMAP and few other ways to interact with Email. Underneath it uses MimeKit and MailKit and EmailValidation libraries.
 - [**Slack:**](https://api.slack.com/) Support is planned in future releases. Send messages into channels ([including ephemeral messages](https://api.slack.com/surfaces/messages#ephemeral)) or directly to users.
 - [**PSGSuite:**](https://github.com/SCRT-HQ/PSGSuite) Support is planned in future releases. Send Google Workspace Gmail & Chat messages. PSGSuite is a PowerShell module wrapping Google's .NET SDKs.
