@@ -1,4 +1,9 @@
-﻿# Type Definitions
+﻿# Global Variables
+New-Variable -Name 'ScriptMessage_Global_CachedServiceContext' -Value ([PSCustomObject]@{}) -Scope Global -Force
+
+# Aliases
+
+# Type Definitions
 
 # Public Enum
 # Name: MessagingService
