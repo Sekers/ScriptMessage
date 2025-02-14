@@ -125,70 +125,72 @@ Function ConvertTo-IMicrosoftGraphAttachment
     {
         [array]$IMicrosoftGraphAttachment = foreach ($currentAttachment in $Attachment)
         {       
-            switch ($currentAttachment.GetType().Name)
+            if (($currentAttachment.ContainsKey('Name')) -and $currentAttachment.ContainsKey('Content'))
             {
-                'Hashtable' { # If direct file content is supplied.
-                    $AttachmentType = 'Content'
-                    if (($currentAttachment.ContainsKey('Name')) -and $currentAttachment.ContainsKey('Content'))
-                    {
-                        $Attachment_ByteEncoded = [System.Convert]::ToBase64String($currentAttachment.Content)
-                    }
-                    else
-                    {
-                        throw "The attachment hashtable object is improperly formatted. The hashtable requires the keys of `'Name`' and `'Contents`'"
-                    }
-    
-                    [array]$IMicrosoftGraphAttachmentItem = @{
-                        "@odata.type" = "#microsoft.graph.fileAttachment"
-                        Name          = $currentAttachment.Name
-                        ContentBytes  = $Attachment_ByteEncoded
-                    }
+                $Attachment_ByteEncoded = [System.Convert]::ToBase64String($currentAttachment.Content)
+                [PSCustomObject]$IMicrosoftGraphAttachmentItem = @{
+                    "@odata.type" = "#microsoft.graph.fileAttachment"
+                    Name          = $currentAttachment.Name
+                    ContentBytes  = $Attachment_ByteEncoded
                 }
-                'String' { # If a directory or file path is supplied.
-    
-                    if (-not (Test-Path -Path $currentAttachment))
-                    {
-                        throw 'Invalid path to attachment directory or file.'
-                    }
-    
-                    switch ((Get-Item -Path $currentAttachment).GetType().Name)
-                    {
-                        'FileInfo'{
-                            $AttachmentType = 'FilePath'
-                            $FileInfo = Get-Item -Path $currentAttachment
-                            $Attachment_ByteEncoded = [convert]::ToBase64String([System.IO.File]::ReadAllBytes($FileInfo.FullName))
-                            [array]$IMicrosoftGraphAttachmentItem = @{
-                                "@odata.type" = "#microsoft.graph.fileAttachment"
-                                Name          = $FileInfo.Name
-                                ContentBytes  = $Attachment_ByteEncoded
-                            }   
-                        }
-                        'DirectoryInfo' {
-                            $AttachmentType = 'DirectoryPath'
-                            $DirectoryContent = Get-ChildItem $currentAttachment -File -Recurse
-                            [array]$IMicrosoftGraphAttachmentItem = foreach ($file in $DirectoryContent)
-                            {
-                                $Attachment_ByteEncoded = [convert]::ToBase64String([System.IO.File]::ReadAllBytes($file.FullName))
-                                @{
-                                    "@odata.type" = "#microsoft.graph.fileAttachment"
-                                    Name          = $file.Name
-                                    ContentBytes  = $Attachment_ByteEncoded
-                                }   
-                            }
-                        }
-                        Default {throw 'Unexpected attachment object type.'}
-                    }
-                }
-                Default {throw 'Unexpected attachment object type.'}
+                $IMicrosoftGraphAttachmentItem
             }
-        
-            $IMicrosoftGraphAttachmentItem
+            else
+            {
+                throw "The attachment hashtable object is improperly formatted. The hashtable requires the keys of `'Name`' and `'Contents`'"
+            }
         }            
     }
 
     end
     {
         return $IMicrosoftGraphAttachment
+    }
+}
+
+Function ConvertTo-IMicrosoftGraphChatMessageAttachment
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [AllowNull()]
+        [array]$MgDriveItem
+    )
+
+    begin
+    {
+        if ([string]::IsNullOrEmpty($MgDriveItem))
+        {
+            return $null
+        }
+    }
+
+    process
+    {
+        [array]$IMicrosoftGraphChatMessageAttachment = foreach ($currentAttachment in $MgDriveItem)
+        {       
+            if ($currentAttachment.ContainsKey('name') -and $currentAttachment.ContainsKey('webUrl'))
+            {
+                [PSCustomObject]$IMicrosoftGraphChatMessageAttachmentItem = @{
+                    ContentType = 'reference'
+                    ContentUrl  = $currentAttachment.webUrl
+                    Name        = $currentAttachment.name
+                }
+                $IMicrosoftGraphChatMessageAttachmentItem
+            }
+            else
+            {
+                throw "The attachment hashtable object is improperly formatted. The hashtable requires the keys of `'webUrl`' and `'name`'"
+            }
+        }            
+    }
+
+    end
+    {
+        return $IMicrosoftGraphChatMessageAttachment
     }
 }
 
@@ -259,16 +261,33 @@ function Connect-ScriptMessage_MgGraph
 
     process
     {
-        # Check For Microsoft.Graph Module
+        # Check For Microsoft.Graph Module #TODO: Don't check and import the modules unless needed, depending on allowed services . Chat & Mail
         # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
-        Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue
-        Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
-        Import-Module 'Microsoft.Graph.Teams' -ErrorAction SilentlyContinue
-        if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams'))
+        Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue # Used for Connect-MgGraph, Disconnect-MgGraph, & Get-MgContext. A required module for all Graph modules.
+        Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue # Used for Send-MgUserMail.
+        Import-Module 'Microsoft.Graph.Teams' -ErrorAction SilentlyContinue # Used for New-MgChat & New-MgChatMessage.
+        # If Chat uploads are enabled (based on the config item 'MgDelegatedPermission_RequestFilesReadWritePermission' being set to true), check for the needed module.
+        if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
         {
-            # Module is not available.
-            Write-Error "Please first install the Microsoft.Graph.Users.Actions & Microsoft.Graph.Teams sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
-            Return
+            Import-Module 'Microsoft.Graph.Files' -ErrorAction SilentlyContinue # Used for Get-MgUserDrive
+
+            # Check for modules.
+            if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams') -or !(Get-Module -Name 'Microsoft.Graph.Files'))
+            {
+                # Module is not available.
+                Write-Error "Please first install the Microsoft.Graph.Users.Actions, Microsoft.Graph.Teams, & Microsoft.Graph.Files sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
+                Return
+            }
+        }
+        else
+        {
+            # Check for modules.
+            if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams'))
+            {
+                # Module is not available.
+                Write-Error "Please first install the Microsoft.Graph.Users.Actions & Microsoft.Graph.Teams sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
+                Return
+            }
         }
 
         # Connect to the Microsoft Graph API.      
@@ -317,6 +336,12 @@ function Connect-ScriptMessage_MgGraph
                     else {
                         $MicrosoftGraphScopes += @(
                             'Chat.ReadBasic' # Allows an app to read the members and descriptions of one-to-one and group chat threads, on behalf of the signed-in user.
+                        )
+                    }
+                    if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+                    {
+                        $MicrosoftGraphScopes += @(
+                            'Files.ReadWrite' # Allows the app to read, create, update and delete the signed-in user's files.
                         )
                     }
                 }
@@ -510,7 +535,6 @@ function Send-ScriptMessage_MgGraph
                             [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
                         }
                     }
-                    
                     [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
                     
                     # Build Email
@@ -599,8 +623,8 @@ function Send-ScriptMessage_MgGraph
                         continue
                     }
 
-                    # Convert Attachment to IMicrosoftGraphAttachment # TODO: Support Chat attachments
-                    [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
+                    # Grab the latest MgGraph service context.
+                    $MgGraphContext = Get-ScriptMessageContext -Service $ServiceId
 
                     # Check For Separate 'SenderID' Value. Make equal to 'From' if not provided.
                     if ([string]::IsNullOrEmpty($SenderId))
@@ -656,6 +680,39 @@ function Send-ScriptMessage_MgGraph
                         }
                     }
 
+                    # Upload and add any attachments, if needed. # TODO: Check for scope permissions.
+                    # Cannot use Set-MgDriveItemContent because it forces a filepath to be provided and we want to provide content directly sometimes.
+                    if (-not [string]::IsNullOrEmpty($Attachment))
+                    {
+                        # Upload the attached file(s) to OneDrive.
+                        $MgUserDrive = Get-MgUserDrive -UserId $($MgGraphContext.Account)
+                        $TeamsChatFolder = 'root:/Microsoft Teams Chat Files'
+                        # Upload files. This method only supports files up to 250 MB in size. For larger files, we would need to implement the "createUploadSession" method.
+                        [array]$MgDriveItem = foreach ($attachmentItem in $Attachment)
+                        {
+                            $MgGraphDriveEndpointUri = 'https://graph.microsoft.com/v1.0/drives/'
+                            $AttachmentFileName = $attachmentItem.Name
+                            
+                            # Get a list of existing files in the Teams Chat Files folder and rename if a file already exists with the same name.
+                            $ExistingFiles = (Get-MgDriveItem -DriveId $MgUserDrive.Id -DriveItemId $TeamsChatFolder -ExpandProperty 'Children').Children
+                            $FileNameCounter = 0
+                            while ($ExistingFiles.Name -contains $AttachmentFileName)
+                            { 
+                                $FileNameCounter++
+                                $FileBaseName = [System.IO.Path]::GetFileNameWithoutExtension($AttachmentFileName)
+                                $FileExtension = [System.IO.Path]::GetExtension($AttachmentFileName)
+                                $AttachmentFileName = "{0} {1}{2}" -f ($FileBaseName -replace ' \d+$',''), $FileNameCounter, $FileExtension
+                            }
+
+                            # Upload File
+                            $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
+                            $InvokeUri = $($MgGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
+                            #Set-MgDriveItemContent -DriveId $MgUserDrive.Id -DriveItemId $DriveItemId -InFile $Attachment[0] # Overwrites file if it exists
+                            Invoke-MgGraphRequest -Method PUT -Uri $InvokeUri -Body $attachmentItem.Content -ContentType 'application/octet-stream'  # Overwrites file if it exists
+                        }
+                        
+                        #TODO: I wonder if we need to update permissions
+
                     # Convert Parameters to IMicrosoft*
                     $Message = @{}
                     if (-not [string]::IsNullOrEmpty($Body.Content))
@@ -669,12 +726,21 @@ function Send-ScriptMessage_MgGraph
                             [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
                         }
                     }
+                    $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
 
-                    $ChatParams = [ordered]@{
-                        Body = $Message.Body
+                        $ChatParams = [ordered]@{
+                            Body = $Message.Body
+                            Attachments = $Message.Attachment
+                        }
+                    }
+                    else
+                    {
+                        $ChatParams = [ordered]@{
+                            Body = $Message.Body
+                        }
                     }
 
-                    # Create a new chat object & Send Message
+                    # Create a new chat object, if needed, & send the message.
                     $Member_SenderID = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $SenderId)
 
                     switch ($ChatType)
@@ -712,7 +778,7 @@ function Send-ScriptMessage_MgGraph
                             )
 
                             # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by the last time the chat OBJECT was updated.
-                            [array]$MicrosoftGraphScopes = Get-MgContext | Select-Object -ExpandProperty Scopes
+                            [array]$MicrosoftGraphScopes = $MgGraphContext | Select-Object -ExpandProperty Scopes
                             if (@($MicrosoftGraphScopes) -contains 'Chat.Read' -or @($MicrosoftGraphScopes) -contains 'Chat.ReadWrite')
                             {
                                 # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.

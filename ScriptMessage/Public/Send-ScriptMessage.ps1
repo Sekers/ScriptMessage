@@ -254,8 +254,11 @@ function Send-ScriptMessage
         [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC
         [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
 
-        # Convert body into properly formatted PSObject
+        # Convert body into properly formatted PSObject.
         $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
+
+        # Convert attachments into properly formatted PSObject.
+        $Attachment = ConvertTo-ScriptMessageAttachmentObject -Attachment $Attachment
 
         if ($null -ne $Service) # If ServiceAndTypeSeparate
         {
