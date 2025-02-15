@@ -48,7 +48,7 @@ function Connect-ScriptMessage
         }
     }
 
-    process
+    process #TODO: Can this check if already connected???
     {
         # Connect to the proper service.
         switch ($Service)
