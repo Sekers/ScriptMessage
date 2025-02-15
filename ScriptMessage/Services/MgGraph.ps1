@@ -244,6 +244,60 @@ function ConvertTo-IMicrosoftGraphConversationMember
     }
 }
 
+function ConvertTo-IMicrosoftGraphDriveInvite
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [pscustomobject]$EmailAddress
+    )
+
+    begin
+    {
+        # Return Null If Provided Recipient is Empty
+        if ([string]::IsNullOrEmpty($EmailAddress))
+        {
+            return $null
+        }
+    }
+    process
+    {
+        # Loop through each of the recipient parameter array objects
+        [array]$IMicrosoftGraphDriveRecipient = foreach ($address in $EmailAddress)
+        {
+            # Check if string (email address) or object/hashtable/etc. If not, separate out.
+            if (-not ($address.GetType().Name -eq 'String'))
+            {
+                throw "Improperly formatted recipient address."
+            }
+
+            # Return IMicrosoftGraphDriveRecipient
+            @{
+                email = $address
+            }
+        }
+
+        $IMicrosoftGraphDriveInvite = @{
+            recipients     = $IMicrosoftGraphDriveRecipient
+            requireSignIn  = $true
+            sendInvitation = $false
+            roles          = @(
+                "read"
+            )
+        }
+    }
+
+    end
+    {
+        return $IMicrosoftGraphDriveInvite
+    }
+}
+
 function Connect-ScriptMessage_MgGraph
 {
     [CmdletBinding()]
@@ -704,14 +758,21 @@ function Send-ScriptMessage_MgGraph
                                 $AttachmentFileName = "{0} {1}{2}" -f ($FileBaseName -replace ' \d+$',''), $FileNameCounter, $FileExtension
                             }
 
-                            # Upload File
+                            # Upload File # TODO: Test weird characters in filename like pound or something
                             $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
                             $InvokeUri = $($MgGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
+                            
+                            # Output the drive upload result.
                             #Set-MgDriveItemContent -DriveId $MgUserDrive.Id -DriveItemId $DriveItemId -InFile $Attachment[0] # Overwrites file if it exists
                             Invoke-MgGraphRequest -Method PUT -Uri $InvokeUri -Body $attachmentItem.Content -ContentType 'application/octet-stream'  # Overwrites file if it exists
                         }
                         
-                        #TODO: I wonder if we need to update permissions
+                        # Update the file(s) sharing permissions.
+                        $DriveInviteParams = ConvertTo-IMicrosoftGraphDriveInvite -EmailAddress $ChatRecipients
+                        foreach ($UploadDriveItemResult in $MgDriveItem)
+                        {
+                            $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
+                        }
 
                     # Convert Parameters to IMicrosoft*
                     $Message = @{}
@@ -764,7 +825,7 @@ function Send-ScriptMessage_MgGraph
                                 }
                             }
                         }
-                        Group
+                        Group #TODO: Sending more than one attachment causes no attachments to be included in the chat message.
                         {
                             # Collect Group Members
                             [array]$Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $ChatRecipients)
