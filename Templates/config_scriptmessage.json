@@ -1,7 +1,10 @@
 {
     "MgGraph": {
         "AllowableMessageTypes": ["Mail", "Chat"],
+        "ChatType": "Group",
+        "IncludeBCCInGroupChat": false,
         "MgPermissionType": "Application",
+        "MgDelegatedPermission_RequestChatReadPermission": true,
         "MgDisconnectWhenDone": false,
         "MgTenantID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
         "MgClientID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",

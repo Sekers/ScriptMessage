@@ -1,5 +1,27 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.0.8](https://github.com/Sekers/ScriptMessage/tree/1.0.8) - (2025-09-18)
+
+### Fixes
+
+- Get-ScriptMessageContext will return common info (like service name) rather than NULL if nothing comes back from the service (e.g., if it's not connected).
+
+### Features
+
+- BREAKING CHANGE: Updates to the return info when sending messages. This is to make the responses more consistent across various services going forward.
+- New Function: Disconnect-ScriptMessage > Disconnects from the specified messaging service ahead of sending the message, if possible.
+- Enabled support for Graph Module Chat (delegated permissions only since Graph does not support application permissions for chat).
+- ScriptMessage now caches service context information. Use Get-ScriptMessageContext with the 'ReturnCachedContext' parameter to have the cmdlet return the cached context information (if it exists to) reduce API calls.
+- Attachments are now supported in messages.
+
+### Other
+
+- README and built-in help updates.
+- Added a few warning messages when using unsupported actions for the Microsoft Graph SDK.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.7](https://github.com/Sekers/ScriptMessage/tree/1.0.7) - (2024-12-26)
 
 ### Features

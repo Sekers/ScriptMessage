@@ -17,6 +17,8 @@ function Send-ScriptMessage
     Specify the messaging service(s) to send the message from. You can specify more than one service to send the same message for redundancy or other purposes.
     .PARAMETER Type
     Optionally specify the type(s) of message(s) (mail, chat, etc.) to use when sending the message. Defaults to the 'Mail' service type. You can specify more than one message type to send the same message for redundancy or other purposes.
+    .PARAMETER ServiceType
+    Alternatively, you can specify both the messaging service(s) and message type(s) in a single parameter. You can specify more than one service/type combination to send the same message for redundancy or other purposes.
     .PARAMETER From
     The messaging address you are sending from. Alternatively, provide an object with the 'Address' property value set to the messaging address and, optionally, include a 'Name' property and corresponding value.
     .PARAMETER ReplyTo
@@ -217,7 +219,20 @@ function Send-ScriptMessage
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [string]$SenderId
+        [string]$SenderId,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [ChatType]$ChatType,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [ValidateSet($null, $true, $false)]
+        [Object]$IncludeBCCInGroupChat # Is an object so it can be set to $null
     )
 
     begin
@@ -241,8 +256,11 @@ function Send-ScriptMessage
         [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC
         [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
 
-        # Convert body into properly formatted PSObject
+        # Convert body into properly formatted PSObject.
         $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
+
+        # Convert attachments into properly formatted PSObject.
+        $Attachment = ConvertTo-ScriptMessageAttachmentObject -Attachment $Attachment
 
         if ($null -ne $Service) # If ServiceAndTypeSeparate
         {
@@ -263,6 +281,16 @@ function Send-ScriptMessage
             $ConnectionParameters = @{
                 ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
             }
+
+            # Set default values if not specified by a parameter.
+            if (-not $ChatType)
+            {
+                [ChatType]$ChatType = $ConnectionParameters.ServiceConfig.ChatType
+            }
+            if (-not $IncludeBCCInGroupChat)
+            {
+                [bool]$IncludeBCCInGroupChat = $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
+            }
     
             # Connect to the messaging service, if necessary (e.g., API service).
             Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
@@ -282,6 +310,8 @@ function Send-ScriptMessage
                         Attachment = $Attachment
                         SenderId = $SenderId
                         Type = $serviceTypeObj.Type
+                        ChatType = $ChatType
+                        IncludeBCCInGroupChat = $IncludeBCCInGroupChat
                     }
     
                     Send-ScriptMessage_MgGraph @SendMessageParameters

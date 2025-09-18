@@ -20,7 +20,7 @@ DynamicParam
             'MgPermissionType', [string], $AttributeCollection) # Delegated or Application. See: https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#permission-types and https://docs.microsoft.com/en-us/graph/auth/auth-concepts#delegated-and-application-permissions.
 
         $DynamicParameter2 = [System.Management.Automation.RuntimeDefinedParameter]::new(
-            'MgDisconnectWhenDone', [bool], $AttributeCollection) # Recommended when using the Application permisison type.
+            'MgDisconnectWhenDone', [bool], $AttributeCollection)
 
         $DynamicParameter3 = [System.Management.Automation.RuntimeDefinedParameter]::new(
             'MgTenantID', [string], $AttributeCollection) 

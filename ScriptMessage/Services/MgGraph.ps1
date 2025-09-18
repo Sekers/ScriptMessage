@@ -28,7 +28,7 @@ Function ConvertTo-IMicrosoftGraphRecipient
 
     process
     {
-        # Loop through each of the recipient paramater array objects
+        # Loop through each of the recipient parameter array objects
         $IMicrosoftGraphRecipient = foreach ($address in $EmailAddress)
         {
             # Check if string (email address) or object/hashtable/etc. If not, separate out.
@@ -125,64 +125,20 @@ Function ConvertTo-IMicrosoftGraphAttachment
     {
         [array]$IMicrosoftGraphAttachment = foreach ($currentAttachment in $Attachment)
         {       
-            switch ($currentAttachment.GetType().Name)
+            if (($currentAttachment.ContainsKey('Name')) -and $currentAttachment.ContainsKey('Content'))
             {
-                'Hashtable' { # If direct file content is supplied.
-                    $AttachmentType = 'Content'
-                    if (($currentAttachment.ContainsKey('Name')) -and $currentAttachment.ContainsKey('Content'))
-                    {
-                        $Attachment_ByteEncoded = [System.Convert]::ToBase64String($currentAttachment.Content)
-                    }
-                    else
-                    {
-                        throw "The attachment hashtable object is improperly formatted. The hashtable requires the keys of `'Name`' and `'Contents`'"
-                    }
-    
-                    [array]$IMicrosoftGraphAttachmentItem = @{
-                        "@odata.type" = "#microsoft.graph.fileAttachment"
-                        Name          = $currentAttachment.Name
-                        ContentBytes  = $Attachment_ByteEncoded
-                    }
+                $Attachment_ByteEncoded = [System.Convert]::ToBase64String($currentAttachment.Content)
+                [PSCustomObject]$IMicrosoftGraphAttachmentItem = @{
+                    "@odata.type" = "#microsoft.graph.fileAttachment"
+                    Name          = $currentAttachment.Name
+                    ContentBytes  = $Attachment_ByteEncoded
                 }
-                'String' { # If a directory or file path is supplied.
-    
-                    if (-not (Test-Path -Path $currentAttachment))
-                    {
-                        throw 'Invalid path to attachment directory or file.'
-                    }
-    
-                    switch ((Get-Item -Path $currentAttachment).GetType().Name)
-                    {
-                        'FileInfo'{
-                            $AttachmentType = 'FilePath'
-                            $FileInfo = Get-Item -Path $currentAttachment
-                            $Attachment_ByteEncoded = [convert]::ToBase64String([System.IO.File]::ReadAllBytes($FileInfo.FullName))
-                            [array]$IMicrosoftGraphAttachmentItem = @{
-                                "@odata.type" = "#microsoft.graph.fileAttachment"
-                                Name          = $FileInfo.Name
-                                ContentBytes  = $Attachment_ByteEncoded
-                            }   
-                        }
-                        'DirectoryInfo' {
-                            $AttachmentType = 'DirectoryPath'
-                            $DirectoryContent = Get-ChildItem $currentAttachment -File -Recurse
-                            [array]$IMicrosoftGraphAttachmentItem = foreach ($file in $DirectoryContent)
-                            {
-                                $Attachment_ByteEncoded = [convert]::ToBase64String([System.IO.File]::ReadAllBytes($file.FullName))
-                                @{
-                                    "@odata.type" = "#microsoft.graph.fileAttachment"
-                                    Name          = $file.Name
-                                    ContentBytes  = $Attachment_ByteEncoded
-                                }   
-                            }
-                        }
-                        Default {throw 'Unexpected attachment object type.'}
-                    }
-                }
-                Default {throw 'Unexpected attachment object type.'}
+                $IMicrosoftGraphAttachmentItem
             }
-        
-            $IMicrosoftGraphAttachmentItem
+            else
+            {
+                throw "The attachment hashtable object is improperly formatted. The hashtable requires the keys of `'Name`' and `'Contents`'"
+            }
         }            
     }
 
@@ -190,6 +146,326 @@ Function ConvertTo-IMicrosoftGraphAttachment
     {
         return $IMicrosoftGraphAttachment
     }
+}
+
+Function ConvertTo-IMicrosoftGraphChatMessageAttachment
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [AllowNull()]
+        [array]$MgDriveItem
+    )
+
+    begin
+    {
+        if ([string]::IsNullOrEmpty($MgDriveItem))
+        {
+            return $null
+        }
+    }
+
+    process
+    {
+        [array]$IMicrosoftGraphChatMessageAttachment = foreach ($currentAttachment in $MgDriveItem)
+        {       
+            if ($currentAttachment.ContainsKey('name') -and $currentAttachment.ContainsKey('webUrl'))
+            {
+                [PSCustomObject]$IMicrosoftGraphChatMessageAttachmentItem = @{
+                    ContentType = 'reference'
+                    ContentUrl  = $currentAttachment.webUrl
+                    Name        = $currentAttachment.name
+                }
+                $IMicrosoftGraphChatMessageAttachmentItem
+            }
+            else
+            {
+                throw "The attachment hashtable object is improperly formatted. The hashtable requires the keys of `'webUrl`' and `'name`'"
+            }
+        }            
+    }
+
+    end
+    {
+        return $IMicrosoftGraphChatMessageAttachment
+    }
+}
+
+function ConvertTo-IMicrosoftGraphConversationMember
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [pscustomobject]$EmailAddress
+    )
+
+    begin
+    {
+        # Return Null If Provided Recipient is Empty
+        if ([string]::IsNullOrEmpty($EmailAddress))
+        {
+            return $null
+        }
+    }
+
+    process
+    {
+        # Loop through each of the recipient parameter array objects
+        $IMicrosoftGraphRecipient = foreach ($address in $EmailAddress)
+        {
+            # Check if string (email address) or object/hashtable/etc. If not, separate out.
+            if (-not ($address.GetType().Name -eq 'String'))
+            {
+                throw "Improperly formatted from or recipient address."
+            }
+
+            # Return IMicrosoftGraphConversationMember
+            @{
+                '@odata.type'     = "#microsoft.graph.aadUserConversationMember"
+                roles             = @(
+                    "owner"
+                )
+                "user@odata.bind" = "https://graph.microsoft.com/v1.0/users('$address')"
+            }
+        }
+    }
+
+    end
+    {
+        return $IMicrosoftGraphRecipient
+    }
+}
+
+function ConvertTo-IMicrosoftGraphDriveInvite
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [pscustomobject]$EmailAddress
+    )
+
+    begin
+    {
+        # Return Null If Provided Recipient is Empty
+        if ([string]::IsNullOrEmpty($EmailAddress))
+        {
+            return $null
+        }
+    }
+    process
+    {
+        # Loop through each of the recipient parameter array objects
+        [array]$IMicrosoftGraphDriveRecipient = foreach ($address in $EmailAddress)
+        {
+            # Check if string (email address) or object/hashtable/etc. If not, separate out.
+            if (-not ($address.GetType().Name -eq 'String'))
+            {
+                throw "Improperly formatted recipient address."
+            }
+
+            # Return IMicrosoftGraphDriveRecipient
+            @{
+                email = $address
+            }
+        }
+
+        $IMicrosoftGraphDriveInvite = @{
+            recipients     = $IMicrosoftGraphDriveRecipient
+            requireSignIn  = $true
+            sendInvitation = $false
+            roles          = @(
+                "read"
+            )
+        }
+    }
+
+    end
+    {
+        return $IMicrosoftGraphDriveInvite
+    }
+}
+
+function Connect-ScriptMessage_MgGraph
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(
+        Mandatory = $true,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [pscustomobject]$ServiceConfig
+    )
+
+    begin
+    {
+    }
+
+    process
+    {
+        # Check For Microsoft.Graph Module #TODO: Don't check and import the modules unless needed, depending on allowed services . Chat & Mail
+        # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
+        Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue # Used for Connect-MgGraph, Disconnect-MgGraph, & Get-MgContext. A required module for all Graph modules.
+        Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue # Used for Send-MgUserMail.
+        Import-Module 'Microsoft.Graph.Teams' -ErrorAction SilentlyContinue # Used for New-MgChat & New-MgChatMessage.
+        # If Chat uploads are enabled (based on the config item 'MgDelegatedPermission_RequestFilesReadWritePermission' being set to true), check for the needed module.
+        if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+        {
+            Import-Module 'Microsoft.Graph.Files' -ErrorAction SilentlyContinue # Used for Get-MgUserDrive
+
+            # Check for modules.
+            if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams') -or !(Get-Module -Name 'Microsoft.Graph.Files'))
+            {
+                # Module is not available.
+                Write-Error "Please first install the Microsoft.Graph.Users.Actions, Microsoft.Graph.Teams, & Microsoft.Graph.Files sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
+                Return
+            }
+        }
+        else
+        {
+            # Check for modules.
+            if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams'))
+            {
+                # Module is not available.
+                Write-Error "Please first install the Microsoft.Graph.Users.Actions & Microsoft.Graph.Teams sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
+                Return
+            }
+        }
+
+        # Connect to the Microsoft Graph API.      
+        $MgPermissionType = $ServiceConfig.MgPermissionType
+        $MgTenantID = $ServiceConfig.MgTenantID
+        $MgClientID = $ServiceConfig.MgClientID
+
+        switch ($MgPermissionType)
+        {
+            Delegated {
+                # E.g. Connect-MgGraph -Scopes "User.Read.All","Group.ReadWrite.All"
+                # You can add additional permissions by repeating the Connect-MgGraph command with the new permission scopes.
+                # View the current scopes under which the PowerShell SDK is (trying to) execute cmdlets: Get-MgContext | select -ExpandProperty Scopes
+                # List all the scopes granted on the service principal object (you cn also do it via the Azure AD UI): Get-MgServicePrincipal -Filter "appId eq '14d82eec-204b-4c2f-b7e8-296a70dab67e'" | % { Get-MgServicePrincipalOauth2PermissionGrant -ServicePrincipalId $_.Id } | fl
+                # Find Graph permission needed. More info on permissions: https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent)
+                #    E.g., Find-MgGraphPermission -SearchString "Teams" -PermissionType Delegated
+                #    E.g., Find-MgGraphPermission -SearchString "Teams" -PermissionType Application
+
+                # The Microsoft Authentication Library (MSAL) currently specifies offline_access, openid, profile, and email by default in authorization and token requests.
+                $MicrosoftGraphScopes = @(
+                    'email' # Allows the app to read your users' primary email address
+                    'offline_access' # With the Microsoft identity platform v2.0 endpoint, you specify the offline_access scope in the scope parameter to explicitly request a refresh token when using the OAuth 2.0 or OpenID Connect protocols.
+                    'openid' # Allows users to sign in to the app with their work or school accounts and allows the app to see basic user profile information.
+                    'profile' # Allows the app to see your users' basic profile (e.g., name, picture, user name, email address)
+                )
+                if ($ServiceConfig.AllowableMessageTypes -contains 'Mail')
+                {
+                    $MicrosoftGraphScopes += @(
+                        'Mail.Send' # With the Mail.Send permission, an app can send mail and save a copy to the user's Sent Items folder, even if the app isn't granted the Mail.ReadWrite or Mail.ReadWrite.Shared permission. 
+                        # 'Mail.Send.Shared' # This scope doesn't seem to be needed for sending as or on behalf of another user. I wonder if being able to do so using just 'Mail.Send' is a bug... > https://learn.microsoft.com/en-us/graph/outlook-send-mail-from-other-user
+                    )
+                }
+                if ($ServiceConfig.AllowableMessageTypes -contains 'Chat')
+                {
+                    $MicrosoftGraphScopes += @(
+                        'Chat.Create' # Allows the app to create chats on behalf of the signed-in user.
+                        'ChatMessage.Send' # Allows an app to send one-to-one and group chat messages in Microsoft Teams, on behalf of the signed-in user.
+                    )
+
+                    if ($ServiceConfig.MgDelegatedPermission_RequestChatReadPermission -eq $true)
+                    {
+                        $MicrosoftGraphScopes += @(
+                            'Chat.Read' # Allows an app to read 1 on 1 or group chats threads, on behalf of the signed-in user.
+                        )
+                    }
+                    else {
+                        $MicrosoftGraphScopes += @(
+                            'Chat.ReadBasic' # Allows an app to read the members and descriptions of one-to-one and group chat threads, on behalf of the signed-in user.
+                        )
+                    }
+                    if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+                    {
+                        $MicrosoftGraphScopes += @(
+                            'Files.ReadWrite' # Allows the app to read, create, update and delete the signed-in user's files.
+                        )
+                    }
+                }
+                $null = Connect-MgGraph -Scopes $MicrosoftGraphScopes -TenantId $MgTenantID -ClientId $MgClientID
+            }
+            Application {
+                [string]$MgApp_AuthenticationType = $ServiceConfig.MgApp_AuthenticationType
+                Write-Verbose -Message "Microsoft Graph App Authentication Type: $MgApp_AuthenticationType"
+
+                switch ($MgApp_AuthenticationType)
+                {
+                    CertificateFile {
+                        # This is only supported using PowerShell 7.4 and later because 5.1 is missing the necessary parameters when using 'Get-PfxCertificate'.
+                        if ($PSVersionTable.PSVersion -lt [Version]'7.4')
+                        {
+                            $NewMessage = "Connecting to Microsoft Graph using a certificate file is only supported with PowerShell version 7.4 and later."
+                            throw $NewMessage
+                        }
+                        
+                        $MgApp_CertificatePath = $ExecutionContext.InvokeCommand.ExpandString($ServiceConfig.MgApp_CertificatePath)
+
+                        # Try accessing private key certificate without password using current process credentials.
+                        [X509Certificate]$MgApp_Certificate = $null
+                        try
+                        {
+                            [X509Certificate]$MgApp_Certificate = Get-PfxCertificate -FilePath $MgApp_CertificatePath -NoPromptForPassword
+                        }
+                        catch # If that doesn't work try the included credentials.
+                        {
+                            $MgApp_EncryptedCertificatePassword = $ServiceConfig.MgApp_EncryptedCertificatePassword
+                            if ([string]::IsNullOrEmpty($MgApp_EncryptedCertificatePassword))
+                            {
+                                $NewMessage = "Cannot access .pfx private key certificate file and no password has been provided."
+                                throw $NewMessage
+                            }
+                            else
+                            {
+                                [SecureString]$MgApp_EncryptedCertificateSecureString = $MgApp_EncryptedCertificatePassword | ConvertTo-SecureString # Can only be decrypted by the same AD account on the same computer.
+                                [X509Certificate]$MgApp_Certificate = Get-PfxCertificate -FilePath $MgApp_CertificatePath -NoPromptForPassword -Password $MgApp_EncryptedCertificateSecureString
+                            }
+                        }
+
+                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -Certificate $MgApp_Certificate
+                    }
+                    CertificateName {
+                        $MgApp_CertificateName = $ServiceConfig.MgApp_CertificateName
+                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -CertificateName $MgApp_CertificateName
+                    }
+                    CertificateThumbprint {
+                        $MgApp_CertificateThumbprint = $ServiceConfig.MgApp_CertificateThumbprint
+                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -CertificateThumbprint $MgApp_CertificateThumbprint
+                    }
+                    ClientSecret {
+                        $MgApp_EncryptedSecret = $ServiceConfig.MgApp_EncryptedSecret
+                        $ClientSecretCredential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $MgClientID, $($MgApp_EncryptedSecret | ConvertTo-SecureString)
+                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientSecretCredential $ClientSecretCredential
+                    }
+                    Default {throw "Invalid `'MgApp_AuthenticationType`' value."}
+                }
+            }
+            Default {throw "Invalid `'MgPermissionType`' value."}
+        }
+    }
+
+    end {}
+}
+
+function Disconnect-ScriptMessage_MGGraph
+{
+    return Disconnect-MgGraph
 }
 
 function Send-ScriptMessage_MgGraph
@@ -263,7 +539,19 @@ function Send-ScriptMessage_MgGraph
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [string]$SenderId
+        [string]$SenderId,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [ChatType]$ChatType,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [bool]$IncludeBCCInGroupChat
     )
 
     begin
@@ -277,6 +565,9 @@ function Send-ScriptMessage_MgGraph
         # Send the message on each supported service specified.
         foreach ($typeItem in $Type)
         {
+            # Reset Warnings
+            $MgWarningMessages = @()
+
             switch ($typeItem)
             {
                 Mail {  
@@ -298,9 +589,8 @@ function Send-ScriptMessage_MgGraph
                             [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
                         }
                     }
-        
                     [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
-        
+                    
                     # Build Email
                     $EmailParams = [ordered]@{
                         SaveToSentItems = $SaveToSentItems
@@ -316,7 +606,7 @@ function Send-ScriptMessage_MgGraph
                         }
                     }
                     
-                    # Check For Separate UserID Value
+                    # Check For Separate 'SenderID' Value. Make equal to 'From' if not provided.
                     if ([string]::IsNullOrEmpty($SenderId))
                     {
                         $SenderId = $Message.From.emailAddress.Address
@@ -330,10 +620,27 @@ function Send-ScriptMessage_MgGraph
                         Name    = $From.Name
                         Address = $From.AddressObj
                     }
-
-                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in ($Message.To).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
-                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in ($Message.CC).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
-                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in ($Message.BCC).EmailAddress) {[PSCustomObject]$i} # Converts hashtables to PSCustomObjects
+                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in $To)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in $CC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in $BCC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
                     [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
                         [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
                         [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
@@ -359,137 +666,301 @@ function Send-ScriptMessage_MgGraph
                     # If successful, output result info.
                     $SendScriptMessageResult
                 }
-                Chat {
-                    Write-Warning -Message "The '$($typeItem)' message type has not yet been implemented for service '$($ServiceId)'."
+                Chat{ # TODO MgChat: If application permissions, then do a bot message. Maybe for delegated give option of direct or bot message.
+                    # Application CHAT permissions are only supported for migration into a Teams Channel.
+                    $ScriptMessageConfig = Get-ScriptMessageConfig
+                    if ($ScriptMessageConfig.$ServiceId.MgPermissionType -eq 'Application')
+                    {
+                        $NewMessage = "Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
+                        Write-Warning -Message $NewMessage
+                        $MgWarningMessages += "$NewMessage"
+                        continue
+                    }
+
+                    # Grab the latest MgGraph service context.
+                    $MgGraphContext = Get-ScriptMessageContext -Service $ServiceId
+
+                    # Check For Separate 'SenderID' Value. Make equal to 'From' if not provided.
+                    if ([string]::IsNullOrEmpty($SenderId))
+                    {
+                        $SenderId = $From.AddressObj
+                    }
+
+                    # Make sure SenderID is equal to From address because Microsoft Graph Chat doesn't support sending on behalf of others.
+                    if ($SenderId -ne $From.AddressObj)
+                    {
+                        $NewMessage = "Microsoft Graph does not support sending Chat messages on behalf of others."
+                        Write-Warning -Message $NewMessage
+                        $MgWarningMessages += "$NewMessage"
+                        continue
+                    }
+
+                    # Collect recipient email addresses
+                    [array]$ChatRecipients_To = @(foreach ($i in $To.AddressObj){$i})
+                    [array]$ChatRecipients_CC = @(foreach ($i in $CC.AddressObj){$i})
+                    [array]$ChatRecipients_BCC = @(foreach ($i in $BCC.AddressObj){$i})
+
+                    if (($ChatType -eq [ChatType]'Group') -and ($IncludeBCCInGroupChat -eq $false))
+                    {
+                        [array]$ChatRecipients = 
+                            $ChatRecipients_To +
+                            $ChatRecipients_CC
+                    }
+                    else
+                    {
+                        [array]$ChatRecipients = 
+                            $ChatRecipients_To +
+                            $ChatRecipients_CC +
+                            $ChatRecipients_BCC
+                    }
+                    
+                    # Remove 'SenderID' address if it exists in the recipients list as well as duplicates
+                    [array]$ChatRecipients = $ChatRecipients | Sort-Object -Unique | Where-Object {$_ -ne $SenderId}
+
+                    # Collect all chat participants.
+                    [array]$AllChatParticipants = [array]$SenderId + [array]$ChatRecipients
+
+                    # Add a warning that BCC recipients (not in Sender, To, or CC) are not included in the group chat.
+                    if (($ChatType -eq [ChatType]'Group') -and ($IncludeBCCInGroupChat -eq $false))
+                    {
+                        foreach ($chatRecipient_BCC in $ChatRecipients_BCC)
+                        {
+                            if ($chatRecipient_BCC -notin $AllChatParticipants)
+                            {
+                                $NewMessage = "The following BCC recipient is not included in the group chat: $chatRecipient_BCC"
+                                Write-Warning -Message $NewMessage
+                                $MgWarningMessages += "$NewMessage"
+                            }
+                        }
+                    }
+
+                    # Upload and add any attachments, if needed. # TODO: Check for scope permissions.
+                    # Cannot use Set-MgDriveItemContent because it forces a filepath to be provided and we want to provide content directly sometimes.
+                    if (-not [string]::IsNullOrEmpty($Attachment))
+                    {
+                        # Upload the attached file(s) to OneDrive.
+                        $MgUserDrive = Get-MgUserDrive -UserId $($MgGraphContext.Account)
+                        $TeamsChatFolder = 'root:/Microsoft Teams Chat Files'
+                        # Upload files. This method only supports files up to 250 MB in size. For larger files, we would need to implement the "createUploadSession" method.
+                        [array]$MgDriveItem = foreach ($attachmentItem in $Attachment)
+                        {
+                            $MgGraphDriveEndpointUri = 'https://graph.microsoft.com/v1.0/drives/'
+                            $AttachmentFileName = $attachmentItem.Name
+                            
+                            # Get a list of existing files in the Teams Chat Files folder and rename if a file already exists with the same name.
+                            $ExistingFiles = (Get-MgDriveItem -DriveId $MgUserDrive.Id -DriveItemId $TeamsChatFolder -ExpandProperty 'Children').Children
+                            $FileNameCounter = 0
+                            while ($ExistingFiles.Name -contains $AttachmentFileName)
+                            { 
+                                $FileNameCounter++
+                                $FileBaseName = [System.IO.Path]::GetFileNameWithoutExtension($AttachmentFileName)
+                                $FileExtension = [System.IO.Path]::GetExtension($AttachmentFileName)
+                                $AttachmentFileName = "{0} {1}{2}" -f ($FileBaseName -replace ' \d+$',''), $FileNameCounter, $FileExtension
+                            }
+
+                            # Upload File # TODO: Test weird characters in filename like pound or something
+                            $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
+                            $InvokeUri = $($MgGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
+                            
+                            # Output the drive upload result.
+                            #Set-MgDriveItemContent -DriveId $MgUserDrive.Id -DriveItemId $DriveItemId -InFile $Attachment[0] # Overwrites file if it exists
+                            Invoke-MgGraphRequest -Method PUT -Uri $InvokeUri -Body $attachmentItem.Content -ContentType 'application/octet-stream'  # Overwrites file if it exists
+                        }
+                        
+                        # Update the file(s) sharing permissions.
+                        $DriveInviteParams = ConvertTo-IMicrosoftGraphDriveInvite -EmailAddress $ChatRecipients
+                        foreach ($UploadDriveItemResult in $MgDriveItem)
+                        {
+                            $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
+                        }
+
+                    # Convert Parameters to IMicrosoft*
+                    $Message = @{}
+                    if (-not [string]::IsNullOrEmpty($Body.Content))
+                    {
+                        if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+                        {
+                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
+                        }
+                        else
+                        {
+                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
+                        }
+                    }
+                    $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
+
+                        $ChatParams = [ordered]@{
+                            Body = $Message.Body
+                            Attachments = $Message.Attachment
+                        }
+                    }
+                    else
+                    {
+                        $ChatParams = [ordered]@{
+                            Body = $Message.Body
+                        }
+                    }
+
+                    # Create a new chat object, if needed, & send the message.
+                    $Member_SenderID = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $SenderId)
+
+                    switch ($ChatType)
+                    {
+                        OneOnOne
+                        {
+                            foreach ($chatRecipient in $ChatRecipients)
+                            {
+                                $Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $chatRecipient)
+                                [array]$Message['Members'] = [array]$Member_SenderID + [array]$Member_ChatRecipients
+                                try
+                                {
+                                    $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
+                                    $SendChatMessageResult = New-MgChatMessage -ChatId $NewChatResult.Id -BodyParameter $ChatParams
+                                }
+                                catch
+                                {
+                                    $NewMessage = "Cannot create a chat with the recipient '$($chatRecipient)'."
+                                    Write-Warning -Message $NewMessage
+                                    $MgWarningMessages += "$NewMessage"
+                                }
+                            }
+                        }
+                        Group #TODO: Sending more than one attachment causes no attachments to be included in the chat message.
+                        {
+                            # Collect Group Members
+                            [array]$Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $ChatRecipients)
+                            [array]$Message['Members'] = [array]$Member_SenderID + [array]$Member_ChatRecipients
+
+                            # See if a group chat already exists with the same recipients.
+                            $MGChatProperties = @(
+                                'ChatType',
+                                'Id',
+                                'LastUpdatedDateTime'
+                            )
+
+                            # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by the last time the chat OBJECT was updated.
+                            [array]$MicrosoftGraphScopes = $MgGraphContext | Select-Object -ExpandProperty Scopes
+                            if (@($MicrosoftGraphScopes) -contains 'Chat.Read' -or @($MicrosoftGraphScopes) -contains 'Chat.ReadWrite')
+                            {
+                                # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.
+                                $ExistingGroupChats = Get-MgChat -All -Filter "ChatType eq 'group'" -Property $MGChatProperties -ExpandProperty 'Members', "LastMessagePreview"
+                                $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property {$_.LastMessagePreview.CreatedDateTime} -Descending
+                            }
+                            else # Only has Chat.ReadBasic so we can't see the last message preview.
+                            {
+                                # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.
+                                $ExistingGroupChats = Get-MgChat -All -Filter "ChatType eq 'group'" -Property $MGChatProperties -ExpandProperty 'Members'
+                                $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property LastUpdatedDateTime -Descending
+                            }
+                            
+                            # Reset the variable and then do a compare\search
+                            $LatestExistingGroupChatMatch = $null
+                            foreach ($existingGroupChat in $ExistingGroupChats)
+                            {
+                                if (-not (Compare-Object -ReferenceObject @($existingGroupChat.Members.AdditionalProperties.email) -DifferenceObject $AllChatParticipants))
+                                {
+                                    $LatestExistingGroupChatMatch = $existingGroupChat
+                                }
+                            }
+
+                            # Send the chat message; create a new chat group if needed.
+                            if (-not $LatestExistingGroupChatMatch)
+                            {
+                                try
+                                {
+                                    $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
+                                    $ChatToUse = $NewChatResult
+                                    $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
+                                }
+                                catch
+                                {
+                                    $NewMessage = "Cannot create a new Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
+                                    Write-Warning -Message $NewMessage
+                                    $MgWarningMessages += "$NewMessage"
+                                }
+                            }
+                            else
+                            {
+                                $ChatToUse = $LatestExistingGroupChatMatch
+                                $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
+                            }
+                        }
+                    }
+
+                    # Collect Return Info
+                    $SendScriptMessageResult_SentFrom = [PSCustomObject]@{
+                        Name    = $From.Name
+                        Address = $From.AddressObj
+                    }
+                    [array]$SendScriptMessageResult_Recipients_To = foreach ($i in $To)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_CC = foreach ($i in $CC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_BCC = foreach ($i in $BCC)
+                    {
+                        [PSCustomObject]@{
+                            Name    = $i.Name
+                            Address = $i.AddressObj
+                        }
+                    }
+                    [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
+                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
+                    )
+                    [array]$SendScriptMessageResult_Recipients_All = $SendScriptMessageResult_Recipients_All | Sort-Object -Unique # Remove duplicate items.
+                    [bool]$SendScriptMessageResult_Recipients_IncludeBCCInGroupChat = $IncludeBCCInGroupChat
+                    $SendScriptMessageResult_Recipients = [PSCustomObject]@{
+                            To = $SendScriptMessageResult_Recipients_To
+                            CC = $SendScriptMessageResult_Recipients_CC
+                            BCC = $SendScriptMessageResult_Recipients_BCC
+                            All = $SendScriptMessageResult_Recipients_All
+                            IncludeBCCInGroupChat = $SendScriptMessageResult_Recipients_IncludeBCCInGroupChat
+                    }
+
+                    # Compile Caught Errors and Warnings
+                    if ($MgWarningMessages.Count -gt 0)
+                    {
+                        [array]$SendScriptMessageResult_Error = foreach ($mgWarningMessage in $MgWarningMessages)
+                        {
+                            [PSCustomObject]@{
+                                Type    = 'Warning'
+                                Message = $mgWarningMessage
+                            }
+                        }
+                    }
+                    else
+                    {
+                        $SendScriptMessageResult_Error = $null
+                    }
+                    
+                    $SendScriptMessageResult = [PSCustomObject]@{
+                        MessageService = $ServiceId
+                        MessageType    = $typeItem
+                        ChatType        = $ChatType
+                        Status         = $SendChatMessageResult
+                        Error          = $SendScriptMessageResult_Error
+                        SentFrom       = $SendScriptMessageResult_SentFrom
+                        Recipients = $SendScriptMessageResult_Recipients
+                    }
+
+                    # If successful, output result info.
+                    $SendScriptMessageResult
                 }
                 Default {
                     Write-Warning -Message "'$($typeItem)' is an invalid message type for service '$($ServiceId)'."
                 }
             }
-        }
-    }
-
-    end {}
-}
-
-function Connect-ScriptMessage_MgGraph
-{
-    [CmdletBinding()]
-    param(
-        [Parameter(
-        Mandatory = $true,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
-        [pscustomobject]$ServiceConfig
-    )
-
-    begin
-    {
-    }
-
-    process
-    {
-        # Check For Microsoft.Graph Module
-        # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
-        Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue
-        Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
-        if (!(Get-Module -Name "Microsoft.Graph.Users.Actions") -or !(Get-Module -Name "Microsoft.Graph.Authentication"))
-        {
-            # Module is not available.
-            Write-Error @"
-Please First Install the Microsoft.Graph.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ ".
-Installing the main modules of the SDK, Microsoft.Graph, will install all sub modules for each module.
-Consider only installing the necessary modules, including Microsoft.Graph.Authentication which is installed by default when you opt
-to install the sub modules individually. For a list of available Microsoft Graph modules, use Find-Module Microsoft.Graph*.
-Only cmdlets for the installed modules will be available for use.
-
-Mail Requirements: Microsoft.Graph.Users.Actions
-Chat Requirements: Microsoft.Graph.Teams
-"@
-            Return
-        }
-
-        # Connect to the Microsoft Graph API.
-        # E.g. Connect-MgGraph -Scopes "User.Read.All","Group.ReadWrite.All"
-        # You can add additional permissions by repeating the Connect-MgGraph command with the new permission scopes.
-        # View the current scopes under which the PowerShell SDK is (trying to) execute cmdlets: Get-MgContext | select -ExpandProperty Scopes
-        # List all the scopes granted on the service principal object (you cn also do it via the Azure AD UI): Get-MgServicePrincipal -Filter "appId eq '14d82eec-204b-4c2f-b7e8-296a70dab67e'" | % { Get-MgServicePrincipalOauth2PermissionGrant -ServicePrincipalId $_.Id } | fl
-        # Find Graph permission needed. More info on permissions: https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent)
-        #    E.g., Find-MgGraphPermission -SearchString "Teams" -PermissionType Delegated
-        #    E.g., Find-MgGraphPermission -SearchString "Teams" -PermissionType Application
-        $MicrosoftGraphScopes = @()
-        if ($ServiceConfig.AllowableMessageTypes -contains 'Mail')
-        {
-            $MicrosoftGraphScopes += @(
-                'Mail.Send'
-                #'Mail.Send.Shared' # Scope is not needed at the moment.
-            )
-        }
-        if ($ServiceConfig.AllowableMessageTypes -contains 'Chat')
-        {
-            $MicrosoftGraphScopes += @(
-                'ChatMessage.Send'
-            )
-        }
-        
-        $MgPermissionType = $ServiceConfig.MgPermissionType
-        $MgTenantID = $ServiceConfig.MgTenantID
-        $MgClientID = $ServiceConfig.MgClientID
-
-        switch ($MgPermissionType)
-        {
-            Delegated {
-                $null = Connect-MgGraph -Scopes $MicrosoftGraphScopes -TenantId $MgTenantID -ClientId $MgClientID
-            }
-            Application {
-                [string]$MgApp_AuthenticationType = $ServiceConfig.MgApp_AuthenticationType
-                if ($LoggingEnabled) {Write-PSFMessage -Message "Microsoft Graph App Authentication Type: $MgApp_AuthenticationType"}
-
-                switch ($MgApp_AuthenticationType)
-                {
-                    CertificateFile {
-                        $MgApp_CertificatePath = $ExecutionContext.InvokeCommand.ExpandString($ServiceConfig.MgApp_CertificatePath)
-
-                        # Try accessing private key certificate without password using current process credentials.
-                        [X509Certificate]$MgApp_Certificate = $null
-                        try
-                        {
-                            [X509Certificate]$MgApp_Certificate = Get-PfxCertificate -FilePath $MgApp_CertificatePath -NoPromptForPassword
-                        }
-                        catch # If that doesn't work try the included credentials.
-                        {
-                            $MgApp_EncryptedCertificatePassword = $ServiceConfig.MgApp_EncryptedCertificatePassword
-                            if ([string]::IsNullOrEmpty($MgApp_EncryptedCertificatePassword))
-                            {
-                                if ($LoggingEnabled) {Write-PSFMessage -Level Error "Cannot access .pfx private key certificate file and no password has been provided."}
-                                throw $_
-                            }
-                            else
-                            {
-                                [SecureString]$MgApp_EncryptedCertificateSecureString = $MgApp_EncryptedCertificatePassword | ConvertTo-SecureString # Can only be decrypted by the same AD account on the same computer.
-                                [X509Certificate]$MgApp_Certificate = Get-PfxCertificate -FilePath $MgApp_CertificatePath -NoPromptForPassword -Password $MgApp_EncryptedCertificateSecureString
-                            }
-                        }
-
-                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -Certificate $MgApp_Certificate
-                    }
-                    CertificateName {
-                        $MgApp_CertificateName = $ServiceConfig.MgApp_CertificateName
-                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -CertificateName $MgApp_CertificateName
-                    }
-                    CertificateThumbprint {
-                        $MgApp_CertificateThumbprint = $ServiceConfig.MgApp_CertificateThumbprint
-                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -CertificateThumbprint $MgApp_CertificateThumbprint
-                    }
-                    ClientSecret {
-                        $MgApp_EncryptedSecret = $ServiceConfig.MgApp_EncryptedSecret
-                        $ClientSecretCredential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $MgClientID, $($MgApp_EncryptedSecret | ConvertTo-SecureString)
-                        $null = Connect-MgGraph -TenantId $MgTenantID -ClientSecretCredential $ClientSecretCredential
-                    }
-                    Default {throw "Invalid `'MgApp_AuthenticationType`' value."}
-                }
-            }
-            Default {throw "Invalid `'MgPermissionType`' value."}
         }
     }
 

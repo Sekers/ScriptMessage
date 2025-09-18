@@ -25,7 +25,7 @@ function Get-ScriptMessageConfig
         Position=0,
         ValueFromPipeline=$true,
         ValueFromPipelineByPropertyName=$true)]
-        [string]$Path = $scriptmessage_config_file_path # If not entered will see if it can pull path from this variable.
+        [string]$Path = $ScriptMessage_Global_ConfigFilePath # If not entered will see if it can pull path from this variable.
     )
     
     begin {}
@@ -35,7 +35,7 @@ function Get-ScriptMessageConfig
         # Make Sure Requested Path Isn't Null or Empty (better to catch it here than validating on the parameter of this function)
         if ([string]::IsNullOrEmpty($Path))
         {
-            throw "`'`$scriptmessage_config_file_path`' is not specified. Don't forget to first use the `'Set-ScriptMessageConfigFilePath`' cmdlet!"
+            throw "`'`$ScriptMessage_Global_ConfigFilePath`' is not specified. Don't forget to first use the `'Set-ScriptMessageConfigFilePath`' cmdlet!"
         }
 
         # Get Config and Secrets
