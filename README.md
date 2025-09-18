@@ -2,6 +2,7 @@
 
 ## Table of Contents  <!-- omit in toc -->
 
+- [This Module is in Public Preview](#this-module-is-in-public-preview)
 - [Overview](#overview)
 - [Currently Supported Services](#currently-supported-services)
 - [What's New](#whats-new)
@@ -9,6 +10,8 @@
 - [Developing and Contributing](#developing-and-contributing)
 
 ---
+## This Module is in Public Preview
+This module can be used in production environments. However, since it is in public preview and certain functions or cmdlet responses may change, please check for any breaking changes in the [CHANGELOG.md](./CHANGELOG.md) before updating to a newer version.
 
 ## Overview
 
