@@ -17,6 +17,8 @@ function Send-ScriptMessage
     Specify the messaging service(s) to send the message from. You can specify more than one service to send the same message for redundancy or other purposes.
     .PARAMETER Type
     Optionally specify the type(s) of message(s) (mail, chat, etc.) to use when sending the message. Defaults to the 'Mail' service type. You can specify more than one message type to send the same message for redundancy or other purposes.
+    .PARAMETER ServiceType
+    Alternatively, you can specify both the messaging service(s) and message type(s) in a single parameter. You can specify more than one service/type combination to send the same message for redundancy or other purposes.
     .PARAMETER From
     The messaging address you are sending from. Alternatively, provide an object with the 'Address' property value set to the messaging address and, optionally, include a 'Name' property and corresponding value.
     .PARAMETER ReplyTo
