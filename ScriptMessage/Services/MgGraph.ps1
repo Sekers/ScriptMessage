@@ -642,9 +642,18 @@ function Send-ScriptMessage_MgGraph
                         }
                     }
                     [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
-                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
-                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
-                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
+                        if ($null -ne $SendScriptMessageResult_Recipients_To)
+                        {
+                            [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
+                        }
+                        if ($null -ne $SendScriptMessageResult_Recipients_CC)
+                        {
+                            [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
+                        }
+                        if ($null -ne $SendScriptMessageResult_Recipients_BCC)
+                        {
+                            [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
+                        }
                     )
                     [array]$SendScriptMessageResult_Recipients_All = $SendScriptMessageResult_Recipients_All | Sort-Object -Unique # Remove duplicate items.
                     $SendScriptMessageResult_Recipients = [PSCustomObject]@{
@@ -671,10 +680,10 @@ function Send-ScriptMessage_MgGraph
                     $ScriptMessageConfig = Get-ScriptMessageConfig
                     if ($ScriptMessageConfig.$ServiceId.MgPermissionType -eq 'Application')
                     {
-                        $NewMessage = "Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
+                        $NewMessage = "Chat not sent. Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
                         Write-Warning -Message $NewMessage
                         $MgWarningMessages += "$NewMessage"
-                        continue
+                        continue #TODO: Remove this continue so we can get the warning message in the output object. See what we may have to change below (probably skip the section).
                     }
 
                     # Grab the latest MgGraph service context.
@@ -689,10 +698,10 @@ function Send-ScriptMessage_MgGraph
                     # Make sure SenderID is equal to From address because Microsoft Graph Chat doesn't support sending on behalf of others.
                     if ($SenderId -ne $From.AddressObj)
                     {
-                        $NewMessage = "Microsoft Graph does not support sending Chat messages on behalf of others."
+                        $NewMessage = "Chat not sent. Microsoft Graph does not support sending Chat messages on behalf of others."
                         Write-Warning -Message $NewMessage
                         $MgWarningMessages += "$NewMessage"
-                        continue
+                        continue #TODO: Remove this continue so we can get the warning message in the output object. See what we may have to change below (probably skip the section).
                     }
 
                     # Collect recipient email addresses
@@ -714,180 +723,191 @@ function Send-ScriptMessage_MgGraph
                             $ChatRecipients_BCC
                     }
                     
-                    # Remove 'SenderID' address if it exists in the recipients list as well as duplicates
+                    # Remove 'SenderID' address if it exists in the recipients list as well as duplicates.
+                    # (Graph does not support sending direct chat messages to yourself since that's not a standard chat thread. I think it's some sort of "note" when used by Teams.)
                     [array]$ChatRecipients = $ChatRecipients | Sort-Object -Unique | Where-Object {$_ -ne $SenderId}
 
                     # Collect all chat participants.
                     [array]$AllChatParticipants = [array]$SenderId + [array]$ChatRecipients
 
-                    # Add a warning that BCC recipients (not in Sender, To, or CC) are not included in the group chat.
-                    if (($ChatType -eq [ChatType]'Group') -and ($IncludeBCCInGroupChat -eq $false))
+                    # Process chat only there are recipients. Otherwise warn if no chat recipients
+                    if ($ChatRecipients.Count -eq 0)
                     {
-                        foreach ($chatRecipient_BCC in $ChatRecipients_BCC)
-                        {
-                            if ($chatRecipient_BCC -notin $AllChatParticipants)
-                            {
-                                $NewMessage = "The following BCC recipient is not included in the group chat: $chatRecipient_BCC"
-                                Write-Warning -Message $NewMessage
-                                $MgWarningMessages += "$NewMessage"
-                            }
-                        }
-                    }
-
-                    # Upload and add any attachments, if needed. # TODO: Check for scope permissions.
-                    # Cannot use Set-MgDriveItemContent because it forces a filepath to be provided and we want to provide content directly sometimes.
-                    if (-not [string]::IsNullOrEmpty($Attachment))
-                    {
-                        # Upload the attached file(s) to OneDrive.
-                        $MgUserDrive = Get-MgUserDrive -UserId $($MgGraphContext.Account)
-                        $TeamsChatFolder = 'root:/Microsoft Teams Chat Files'
-                        # Upload files. This method only supports files up to 250 MB in size. For larger files, we would need to implement the "createUploadSession" method.
-                        [array]$MgDriveItem = foreach ($attachmentItem in $Attachment)
-                        {
-                            $MgGraphDriveEndpointUri = 'https://graph.microsoft.com/v1.0/drives/'
-                            $AttachmentFileName = $attachmentItem.Name
-                            
-                            # Get a list of existing files in the Teams Chat Files folder and rename if a file already exists with the same name.
-                            $ExistingFiles = (Get-MgDriveItem -DriveId $MgUserDrive.Id -DriveItemId $TeamsChatFolder -ExpandProperty 'Children').Children
-                            $FileNameCounter = 0
-                            while ($ExistingFiles.Name -contains $AttachmentFileName)
-                            { 
-                                $FileNameCounter++
-                                $FileBaseName = [System.IO.Path]::GetFileNameWithoutExtension($AttachmentFileName)
-                                $FileExtension = [System.IO.Path]::GetExtension($AttachmentFileName)
-                                $AttachmentFileName = "{0} {1}{2}" -f ($FileBaseName -replace ' \d+$',''), $FileNameCounter, $FileExtension
-                            }
-
-                            # Upload File # TODO: Test weird characters in filename like pound or something
-                            $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
-                            $InvokeUri = $($MgGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
-                            
-                            # Output the drive upload result.
-                            #Set-MgDriveItemContent -DriveId $MgUserDrive.Id -DriveItemId $DriveItemId -InFile $Attachment[0] # Overwrites file if it exists
-                            Invoke-MgGraphRequest -Method PUT -Uri $InvokeUri -Body $attachmentItem.Content -ContentType 'application/octet-stream'  # Overwrites file if it exists
-                        }
-                        
-                        # Update the file(s) sharing permissions.
-                        $DriveInviteParams = ConvertTo-IMicrosoftGraphDriveInvite -EmailAddress $ChatRecipients
-                        foreach ($UploadDriveItemResult in $MgDriveItem)
-                        {
-                            $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
-                        }
-
-                    # Convert Parameters to IMicrosoft*
-                    $Message = @{}
-                    if (-not [string]::IsNullOrEmpty($Body.Content))
-                    {
-                        if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
-                        {
-                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
-                        }
-                        else
-                        {
-                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
-                        }
-                    }
-                    $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
-
-                        $ChatParams = [ordered]@{
-                            Body = $Message.Body
-                            Attachments = $Message.Attachment
-                        }
+                        $NewMessage = "Chat not sent. No chat recipients exist. If you are trying to send a chat message to yourself, please note that Microsoft doesn't support direct messaging to yourself via the Graph API."
+                        Write-Warning -Message $NewMessage
+                        $MgWarningMessages += "$NewMessage"
                     }
                     else
                     {
-                        $ChatParams = [ordered]@{
-                            Body = $Message.Body
-                        }
-                    }
-
-                    # Create a new chat object, if needed, & send the message.
-                    $Member_SenderID = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $SenderId)
-
-                    switch ($ChatType)
-                    {
-                        OneOnOne
+                        # Add a warning that BCC recipients (not in Sender, To, or CC) are not included in the group chat.
+                        if (($ChatType -eq [ChatType]'Group') -and ($IncludeBCCInGroupChat -eq $false))
                         {
-                            foreach ($chatRecipient in $ChatRecipients)
+                            foreach ($chatRecipient_BCC in $ChatRecipients_BCC)
                             {
-                                $Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $chatRecipient)
-                                [array]$Message['Members'] = [array]$Member_SenderID + [array]$Member_ChatRecipients
-                                try
+                                if ($chatRecipient_BCC -notin $AllChatParticipants)
                                 {
-                                    $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
-                                    $SendChatMessageResult = New-MgChatMessage -ChatId $NewChatResult.Id -BodyParameter $ChatParams
-                                }
-                                catch
-                                {
-                                    $NewMessage = "Cannot create a chat with the recipient '$($chatRecipient)'."
+                                    $NewMessage = "The following BCC recipient is not included in the group chat: $chatRecipient_BCC"
                                     Write-Warning -Message $NewMessage
                                     $MgWarningMessages += "$NewMessage"
                                 }
                             }
                         }
-                        Group #TODO: Sending more than one attachment causes no attachments to be included in the chat message.
+
+                        # Upload and add any attachments, if needed. # TODO: Check for scope permissions.
+                        # Cannot use Set-MgDriveItemContent because it forces a filepath to be provided and we want to provide content directly sometimes.
+                        if (-not [string]::IsNullOrEmpty($Attachment))
                         {
-                            # Collect Group Members
-                            [array]$Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $ChatRecipients)
-                            [array]$Message['Members'] = [array]$Member_SenderID + [array]$Member_ChatRecipients
-
-                            # See if a group chat already exists with the same recipients.
-                            $MGChatProperties = @(
-                                'ChatType',
-                                'Id',
-                                'LastUpdatedDateTime'
-                            )
-
-                            # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by the last time the chat OBJECT was updated.
-                            [array]$MicrosoftGraphScopes = $MgGraphContext | Select-Object -ExpandProperty Scopes
-                            if (@($MicrosoftGraphScopes) -contains 'Chat.Read' -or @($MicrosoftGraphScopes) -contains 'Chat.ReadWrite')
+                            # Upload the attached file(s) to OneDrive.
+                            $MgUserDrive = Get-MgUserDrive -UserId $($MgGraphContext.Account)
+                            $TeamsChatFolder = 'root:/Microsoft Teams Chat Files'
+                            # Upload files. This method only supports files up to 250 MB in size. For larger files, we would need to implement the "createUploadSession" method.
+                            [array]$MgDriveItem = foreach ($attachmentItem in $Attachment)
                             {
-                                # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.
-                                $ExistingGroupChats = Get-MgChat -All -Filter "ChatType eq 'group'" -Property $MGChatProperties -ExpandProperty 'Members', "LastMessagePreview"
-                                $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property {$_.LastMessagePreview.CreatedDateTime} -Descending
-                            }
-                            else # Only has Chat.ReadBasic so we can't see the last message preview.
-                            {
-                                # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.
-                                $ExistingGroupChats = Get-MgChat -All -Filter "ChatType eq 'group'" -Property $MGChatProperties -ExpandProperty 'Members'
-                                $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property LastUpdatedDateTime -Descending
+                                $MgGraphDriveEndpointUri = 'https://graph.microsoft.com/v1.0/drives/'
+                                $AttachmentFileName = $attachmentItem.Name
+                                
+                                # Get a list of existing files in the Teams Chat Files folder and rename if a file already exists with the same name.
+                                $ExistingFiles = (Get-MgDriveItem -DriveId $MgUserDrive.Id -DriveItemId $TeamsChatFolder -ExpandProperty 'Children').Children
+                                $FileNameCounter = 0
+                                while ($ExistingFiles.Name -contains $AttachmentFileName)
+                                { 
+                                    $FileNameCounter++
+                                    $FileBaseName = [System.IO.Path]::GetFileNameWithoutExtension($AttachmentFileName)
+                                    $FileExtension = [System.IO.Path]::GetExtension($AttachmentFileName)
+                                    $AttachmentFileName = "{0} {1}{2}" -f ($FileBaseName -replace ' \d+$',''), $FileNameCounter, $FileExtension
+                                }
+
+                                # Upload File # TODO: Test weird characters in filename like pound or something
+                                $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
+                                $InvokeUri = $($MgGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
+                                
+                                # Output the drive upload result.
+                                #Set-MgDriveItemContent -DriveId $MgUserDrive.Id -DriveItemId $DriveItemId -InFile $Attachment[0] # Overwrites file if it exists
+                                Invoke-MgGraphRequest -Method PUT -Uri $InvokeUri -Body $attachmentItem.Content -ContentType 'application/octet-stream'  # Overwrites file if it exists
                             }
                             
-                            # Reset the variable and then do a compare\search
-                            $LatestExistingGroupChatMatch = $null
-                            foreach ($existingGroupChat in $ExistingGroupChats)
+                            # Update the file(s) sharing permissions.
+                            $DriveInviteParams = ConvertTo-IMicrosoftGraphDriveInvite -EmailAddress $ChatRecipients
+                            foreach ($UploadDriveItemResult in $MgDriveItem)
                             {
-                                if (-not (Compare-Object -ReferenceObject @($existingGroupChat.Members.AdditionalProperties.email) -DifferenceObject $AllChatParticipants))
-                                {
-                                    $LatestExistingGroupChatMatch = $existingGroupChat
-                                }
+                                $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
                             }
 
-                            # Send the chat message; create a new chat group if needed.
-                            if (-not $LatestExistingGroupChatMatch)
+                        # Convert Parameters to IMicrosoft*
+                        $Message = @{}
+                        if (-not [string]::IsNullOrEmpty($Body.Content))
+                        {
+                            if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
                             {
-                                try
-                                {
-                                    $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
-                                    $ChatToUse = $NewChatResult
-                                    $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
-                                }
-                                catch
-                                {
-                                    $NewMessage = "Cannot create a new Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
-                                    Write-Warning -Message $NewMessage
-                                    $MgWarningMessages += "$NewMessage"
-                                }
+                                [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
                             }
                             else
                             {
-                                $ChatToUse = $LatestExistingGroupChatMatch
-                                $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
+                                [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
+                            }
+                        }
+                        $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
+
+                            $ChatParams = [ordered]@{
+                                Body = $Message.Body
+                                Attachments = $Message.Attachment
+                            }
+                        }
+                        else
+                        {
+                            $ChatParams = [ordered]@{
+                                Body = $Message.Body
+                            }
+                        }
+
+                        # Create a new chat object, if needed, & send the message.
+                        $Member_SenderID = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $SenderId)
+
+                        switch ($ChatType)
+                        {
+                            OneOnOne
+                            {
+                                foreach ($chatRecipient in $ChatRecipients)
+                                {
+                                    $Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $chatRecipient)
+                                    [array]$Message['Members'] = [array]$Member_SenderID + [array]$Member_ChatRecipients
+                                    try
+                                    {
+                                        $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
+                                        $SendChatMessageResult = New-MgChatMessage -ChatId $NewChatResult.Id -BodyParameter $ChatParams
+                                    }
+                                    catch
+                                    {
+                                        $NewMessage = "Cannot create a chat with the recipient '$($chatRecipient)'."
+                                        Write-Warning -Message $NewMessage
+                                        $MgWarningMessages += "$NewMessage"
+                                    }
+                                }
+                            }
+                            Group #TODO: Sending more than one attachment causes no attachments to be included in the chat message.
+                            {
+                                # Collect Group Members
+                                [array]$Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $ChatRecipients)
+                                [array]$Message['Members'] = [array]$Member_SenderID + [array]$Member_ChatRecipients
+
+                                # See if a group chat already exists with the same recipients.
+                                $MGChatProperties = @(
+                                    'ChatType',
+                                    'Id',
+                                    'LastUpdatedDateTime'
+                                )
+
+                                # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by the last time the chat OBJECT was updated.
+                                [array]$MicrosoftGraphScopes = $MgGraphContext | Select-Object -ExpandProperty Scopes
+                                if (@($MicrosoftGraphScopes) -contains 'Chat.Read' -or @($MicrosoftGraphScopes) -contains 'Chat.ReadWrite')
+                                {
+                                    # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.
+                                    $ExistingGroupChats = Get-MgChat -All -Filter "ChatType eq 'group'" -Property $MGChatProperties -ExpandProperty 'Members', "LastMessagePreview"
+                                    $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property {$_.LastMessagePreview.CreatedDateTime} -Descending
+                                }
+                                else # Only has Chat.ReadBasic so we can't see the last message preview.
+                                {
+                                    # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.
+                                    $ExistingGroupChats = Get-MgChat -All -Filter "ChatType eq 'group'" -Property $MGChatProperties -ExpandProperty 'Members'
+                                    $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property LastUpdatedDateTime -Descending
+                                }
+                                
+                                # Reset the variable and then do a compare\search
+                                $LatestExistingGroupChatMatch = $null
+                                foreach ($existingGroupChat in $ExistingGroupChats)
+                                {
+                                    if (-not (Compare-Object -ReferenceObject @($existingGroupChat.Members.AdditionalProperties.email) -DifferenceObject $AllChatParticipants))
+                                    {
+                                        $LatestExistingGroupChatMatch = $existingGroupChat
+                                    }
+                                }
+
+                                # Send the chat message; create a new chat group if needed.
+                                if (-not $LatestExistingGroupChatMatch)
+                                {
+                                    try
+                                    {
+                                        $NewChatResult = New-MgChat -ChatType $ChatType.ToString() -Members $Message.Members
+                                        $ChatToUse = $NewChatResult
+                                        $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
+                                    }
+                                    catch
+                                    {
+                                        $NewMessage = "Cannot create a new Teams group chat due to at least one recipient of the group: '$($ChatRecipients -join ', ')'."
+                                        Write-Warning -Message $NewMessage
+                                        $MgWarningMessages += "$NewMessage"
+                                    }
+                                }
+                                else
+                                {
+                                    $ChatToUse = $LatestExistingGroupChatMatch
+                                    $SendChatMessageResult = New-MgChatMessage -ChatId $ChatToUse.Id -BodyParameter $ChatParams
+                                }
                             }
                         }
                     }
 
-                    # Collect Return Info
+                    # Collect Return Info # TODO: How does this work if we have both chat and email service types. I also think that the email type looks different (better) when CC and BBC are missing, etc.
                     $SendScriptMessageResult_SentFrom = [PSCustomObject]@{
                         Name    = $From.Name
                         Address = $From.AddressObj
@@ -914,9 +934,18 @@ function Send-ScriptMessage_MgGraph
                         }
                     }
                     [array]$SendScriptMessageResult_Recipients_All = @( # Since Address is also a PSMethod we need to do some fun stuff (List<psobject> doesn't have a method called Address) so we don't get the dreaded 'OverloadDefinitions'.
-                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
-                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
-                        [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
+                        if ($null -ne $SendScriptMessageResult_Recipients_To)
+                        {
+                            [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_To).Address
+                        }
+                        if ($null -ne $SendScriptMessageResult_Recipients_CC)
+                        {
+                            [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_CC).Address
+                        }
+                        if ($null -ne $SendScriptMessageResult_Recipients_BCC)
+                        {
+                            [System.Linq.Enumerable]::ToList([PSObject[]]$SendScriptMessageResult_Recipients_BCC).Address
+                        }
                     )
                     [array]$SendScriptMessageResult_Recipients_All = $SendScriptMessageResult_Recipients_All | Sort-Object -Unique # Remove duplicate items.
                     [bool]$SendScriptMessageResult_Recipients_IncludeBCCInGroupChat = $IncludeBCCInGroupChat
