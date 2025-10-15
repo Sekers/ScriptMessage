@@ -258,8 +258,7 @@ function Send-ScriptMessage
     }
 
     # Convert recipient types into properly formatted PSObject.
-    $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From  
-        Write-Host $($From.GetType()) # Note that From is NOT an array. There should only be one.
+    $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
     [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo 
     [array]$To = ConvertTo-ScriptMessageRecipientObject -Recipient $To 
     [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC 
