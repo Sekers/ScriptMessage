@@ -11,47 +11,37 @@ function ConvertTo-ScriptMessageRecipientObject
         [pscustomobject]$Recipient
     )
 
-
-    begin
+    if (([string]::IsNullOrEmpty($Recipient)) -and ($Recipient.Count -lt 1))
     {
-        if (([string]::IsNullOrEmpty($Recipient)) -and ($Recipient.Count -lt 1))
-        {
-            return $null
-        }
+        return $null
     }
 
-    process
+    [array]$ScriptMessageRecipientObject = foreach ($recipientItem in $Recipient)
     {
-        [array]$ScriptMessageRecipientObject = foreach ($recipientItem in $Recipient)
+        # Check if 'recipientItem' is string (email address, etc.). If it is, turn into a PSobject.
+        if ($recipientItem.GetType().Name -eq 'String')
         {
-            # Check if 'recipientItem' is string (email address, etc.). If it is, turn into a PSobject.
-            if ($recipientItem.GetType().Name -eq 'String')
+            [PSCustomObject]@{
+                AddressObj = $recipientItem # Don't use 'Address' because it can conflict with the 'Address()' method.
+            }
+        }
+        else # Return item as properly formatted PSObject that includes the 'Name' property.
+        {
+            if ([string]::IsNullOrEmpty($recipientItem.Name))
             {
                 [PSCustomObject]@{
-                    AddressObj = $recipientItem # Don't use 'Address' because it can conflict with the 'Address()' method.
+                    AddressObj = $recipientItem.Address # Don't use 'Address' because it can conflict with the 'Address()' method.
                 }
             }
-            else # Return item as properly formatted PSObject that includes the 'Name' property.
+            else
             {
-                if ([string]::IsNullOrEmpty($recipientItem.Name))
-                {
-                    [PSCustomObject]@{
-                        AddressObj = $recipientItem.Address # Don't use 'Address' because it can conflict with the 'Address()' method.
-                    }
-                }
-                else
-                {
-                    [PSCustomObject]@{
-                        Name = $recipientItem.Name
-                        AddressObj = $recipientItem.Address # Don't use 'Address' because it can conflict with the 'Address()' method.
-                    }
+                [PSCustomObject]@{
+                    Name = $recipientItem.Name
+                    AddressObj = $recipientItem.Address # Don't use 'Address' because it can conflict with the 'Address()' method.
                 }
             }
         }
     }
-
-    end
-    {
-        return $ScriptMessageRecipientObject
-    }
+    
+    return $ScriptMessageRecipientObject
 }

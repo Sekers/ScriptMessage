@@ -37,32 +37,23 @@ function Connect-ScriptMessage
         [switch]$ReturnConnectionInfo
     )
 
-    begin
-    {
-        # Set the necessary configuration variables.
-        $ScriptMessageConfig = Get-ScriptMessageConfig
-        
-        # Set the connection parameters.
-        $ConnectionParameters = @{
-            ServiceConfig = $ScriptMessageConfig.$Service
-        }
+    # Set the necessary configuration variables.
+    $ScriptMessageConfig = Get-ScriptMessageConfig
+    
+    # Set the connection parameters.
+    $ConnectionParameters = @{
+        ServiceConfig = $ScriptMessageConfig.$Service
     }
-
-    process #TODO: Can this check if already connected???
+    
+    # Connect to the proper service.
+    switch ($Service)
     {
-        # Connect to the proper service.
-        switch ($Service)
-        {
-            MgGraph {Connect-ScriptMessage_MGGraph @ConnectionParameters}
-        }
+        MgGraph {Connect-ScriptMessage_MGGraph @ConnectionParameters}
     }
-
-    end
-    {
-        # Return the connection information, if requested.
-        if ($ReturnConnectionInfo)
-        {  
-            return Get-ScriptMessageContext -Service $Service
-        }
+    
+    # Return the connection information, if requested.
+    if ($ReturnConnectionInfo)
+    {  
+        return Get-ScriptMessageContext -Service $Service
     }
 }

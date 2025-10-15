@@ -38,58 +38,49 @@ function Get-ScriptMessageContext
         [Switch]$ReturnCachedContext
     )
     
-    begin
-    {
-        # Create the context object to return.
-        $ScriptMessageContext = New-Object System.Object
+    # Create the context object to return.
+    $ScriptMessageContext = New-Object System.Object
 
-        # Enable a force refresh if no data exists for the specified service or if $ReturnCachedContext is not present.
-        if (($null -eq $ScriptMessage_Global_CachedServiceContext.$Service) -or (-not $ReturnCachedContext.IsPresent))
-        {
-            $RefreshContext = $true
-        }
+    # Enable a force refresh if no data exists for the specified service or if $ReturnCachedContext is not present.
+    if (($null -eq $ScriptMessage_Global_CachedServiceContext.$Service) -or (-not $ReturnCachedContext.IsPresent))
+    {
+        $RefreshContext = $true
     }
 
-    process
+    if ($RefreshContext)
     {
-        if ($RefreshContext)
+        # Retrieve any common connection info across services.
+        $CommonConnectionInfo = [pscustomobject]@{
+            Service = $Service.ToString()
+        }
+        foreach ($infoItem in $($CommonConnectionInfo.PSObject.Properties))
         {
-            # Retrieve any common connection info across services.
-            $CommonConnectionInfo = [pscustomobject]@{
-                Service = $Service.ToString()
-            }
-            foreach ($infoItem in $($CommonConnectionInfo.PSObject.Properties))
-            {
-                $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
-            }
+            $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
+        }
 
-            # Retrieve connection information.
-            switch ($Service)
-            {
-                MgGraph {
-                    $MgContext = Get-MgContext
-                    if ([string]::IsNullOrEmpty($MgContext))
-                    {
-                        break # Terminate the switch statement.
-                    }
-                    foreach ($infoItem in $($MgContext.PSObject.Properties))
-                    {
-                        $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
-                    }
+        # Retrieve connection information.
+        switch ($Service)
+        {
+            MgGraph {
+                $MgContext = Get-MgContext
+                if ([string]::IsNullOrEmpty($MgContext))
+                {
+                    break # Terminate the switch statement.
+                }
+                foreach ($infoItem in $($MgContext.PSObject.Properties))
+                {
+                    $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
                 }
             }
+        }
 
-            # Update cached context data for the specified service.
-            $ScriptMessage_Global_CachedServiceContext | Add-Member -MemberType NoteProperty -Name $Service -Value $ScriptMessageContext -Force # Force allows overwriting existing members.
-        }
-        else
-        {
-            $ScriptMessageContext = $ScriptMessage_Global_CachedServiceContext.$Service
-        }
+        # Update cached context data for the specified service.
+        $ScriptMessage_Global_CachedServiceContext | Add-Member -MemberType NoteProperty -Name $Service -Value $ScriptMessageContext -Force # Force allows overwriting existing members.
     }
-    
-    end
+    else
     {
-        return $ScriptMessageContext
+        $ScriptMessageContext = $ScriptMessage_Global_CachedServiceContext.$Service
     }
+
+    return $ScriptMessageContext
 }

@@ -19,6 +19,13 @@ enum MessageType {
 }
 
 # Public Enum
+# Name: MailType
+enum MailType {
+    OneOnOne
+    Group
+}
+
+# Public Enum
 # Name: ChatType
 enum ChatType {
     OneOnOne

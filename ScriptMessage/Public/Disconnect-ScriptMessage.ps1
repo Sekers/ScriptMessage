@@ -37,55 +37,45 @@ function Disconnect-ScriptMessage
         [switch]$ReturnConnectionInfo
     )
 
-    begin
+    # Disconnect from the proper service.
+    $ServiceDisconnectReturnInfo = switch ($Service)
     {
+        MgGraph {Disconnect-ScriptMessage_MGGraph}
     }
 
-    process
-    {
-        # Disconnect from the proper service.
-        $ServiceDisconnectReturnInfo = switch ($Service)
+    # Return the disconnection information, if requested.
+    if ($ReturnConnectionInfo)
+    {  
+        # Create the disconnect info object to return.
+        $ScriptMessageDisconnectReturnInfo = New-Object System.Object
+
+        # Retrieve any common disconnection info across services.
+        $CommonConnectionInfo = [pscustomobject]@{
+            Service = $Service.ToString()
+        }
+        foreach ($infoItem in $($CommonConnectionInfo.PSObject.Properties))
         {
-            MgGraph {Disconnect-ScriptMessage_MGGraph}
+            $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
         }
 
-        # Return the disconnection information, if requested.
-        if ($ReturnConnectionInfo)
-        {  
-            # Create the disconnect info object to return.
-            $ScriptMessageDisconnectReturnInfo = New-Object System.Object
-
-            # Retrieve any common disconnection info across services.
-            $CommonConnectionInfo = [pscustomobject]@{
-                Service = $Service.ToString()
-            }
-            foreach ($infoItem in $($CommonConnectionInfo.PSObject.Properties))
-            {
-                $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
-            }
-
-            # Add in disconnection information.
-            switch ($Service)
-            {
-                MgGraph {
-                    if ([string]::IsNullOrEmpty($ServiceDisconnectReturnInfo))
-                    {
-                        break # Terminate the switch statement.
-                    }
-                    foreach ($infoItem in $($ServiceDisconnectReturnInfo.PSObject.Properties))
-                    {
-                        $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
-                    }
+        # Add in disconnection information.
+        switch ($Service)
+        {
+            MgGraph {
+                if ([string]::IsNullOrEmpty($ServiceDisconnectReturnInfo))
+                {
+                    break # Terminate the switch statement.
+                }
+                foreach ($infoItem in $($ServiceDisconnectReturnInfo.PSObject.Properties))
+                {
+                    $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
                 }
             }
         }
     }
 
-    end
+    if ($ReturnConnectionInfo)
     {
-        if ($ReturnConnectionInfo)
-        {
-            return $ScriptMessageDisconnectReturnInfo
-        }
+        return $ScriptMessageDisconnectReturnInfo
     }
 }
