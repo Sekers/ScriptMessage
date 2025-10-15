@@ -598,11 +598,28 @@ function Send-ScriptMessage_MgGraph
                         All = $SendScriptMessageResult_Recipients_All
                 }
 
+                # Compile Caught Errors and Warnings
+                if ($MgWarningMessages.Count -gt 0)
+                {
+                    [array]$SendScriptMessageResult_Error = foreach ($mgWarningMessage in $MgWarningMessages)
+                    {
+                        [PSCustomObject]@{
+                            Type    = 'Warning'
+                            Message = $mgWarningMessage
+                        }
+                    }
+                }
+                else
+                {
+                    $SendScriptMessageResult_Error = $null
+                }
+
                 $SendScriptMessageResult = [PSCustomObject]@{
                     MessageService = $ServiceId
                     MessageType    = $typeItem
+                    MailType       = $MailType # TODO: MAILTYPE
                     Status         = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
-                    Error          = $null
+                    Error          = $SendScriptMessageResult_Error
                     SentFrom       = $SendScriptMessageResult_SentFrom
                     Recipients = $SendScriptMessageResult_Recipients
                 }
@@ -859,7 +876,7 @@ function Send-ScriptMessage_MgGraph
                         }
                     }
 
-                    # Collect Return Info # TODO: How does this work if we have both chat and email service types. I also think that the email type looks different (better) when CC and BBC are missing, etc.
+                    # Collect Return Info
                     $SendScriptMessageResult_SentFrom = [PSCustomObject]@{
                         Name    = $From.Name
                         Address = $From.AddressObj
