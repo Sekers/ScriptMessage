@@ -702,7 +702,23 @@ function Send-ScriptMessage_MgGraph
                                     $AttachmentFileName = $attachmentItem.Name
                                     
                                     # Get a list of existing files in the Teams Chat Files folder and rename if a file already exists with the same name.
-                                    $ExistingFiles = (Get-MgDriveItem -DriveId $MgUserDrive.Id -DriveItemId $TeamsChatFolder -ExpandProperty 'Children').Children
+                                    try # Need to check if the $TeamsChatFolder exists first. If not, Get-MgDriveItem will throw a terminating exception.
+                                    {
+                                        $ExistingFiles = (Get-MgDriveItem -DriveId $MgUserDrive.Id -DriveItemId $TeamsChatFolder -ExpandProperty 'Children').Children
+                                    }
+                                    catch
+                                    {
+                                        if ($_.Exception.Message -like "*itemNotFound*")
+                                        {
+                                            $ExistingFiles = $null # Make sure this is null.
+                                        }
+                                        else
+                                        {
+                                            # Handle other types of errors
+                                            Write-Error "An unexpected error occurred while uploading file attachment for chat: $($_.Exception.Message)"
+                                        }
+                                    }
+                                    
                                     $FileNameCounter = 0
                                     while ($ExistingFiles.Name -contains $AttachmentFileName)
                                     { 
