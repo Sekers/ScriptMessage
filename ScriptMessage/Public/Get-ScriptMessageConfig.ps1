@@ -8,7 +8,7 @@ function Get-ScriptMessageConfig
         Get the configuration and secrets to connect to the messaging service(s).
 
         .DESCRIPTION
-       Get the configuration and secrets to connect to the messaging service(s).
+        Get the configuration and secrets to connect to the messaging service(s).
 
         .PARAMETER ConfigPath
         Optional. If not provided, the function will use the path used in the current session (if set).

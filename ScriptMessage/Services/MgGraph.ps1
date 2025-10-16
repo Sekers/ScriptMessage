@@ -258,33 +258,46 @@ function Connect-ScriptMessage_MgGraph
         [pscustomobject]$ServiceConfig
     )
 
-    # Check For Microsoft.Graph Module #TODO: Don't check and import the modules unless needed, depending on allowed services. Chat & Mail
+    # Check For Microsoft.Graph Modules
     # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
-    Import-Module 'Microsoft.Graph.Authentication' -ErrorAction SilentlyContinue # Used for Connect-MgGraph, Disconnect-MgGraph, & Get-MgContext. A required module for all Graph modules.
-    Import-Module 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue # Used for Send-MgUserMail.
-    Import-Module 'Microsoft.Graph.Teams' -ErrorAction SilentlyContinue # Used for New-MgChat & New-MgChatMessage.
-    # If Chat uploads are enabled (based on the config item 'MgDelegatedPermission_RequestFilesReadWritePermission' being set to true), check for the needed module.
+    $RequiredModules = [System.Collections.Generic.List[Object]]::new()
+
+    # Required For All Graph Modules
+    [string]$ModuleName = 'Microsoft.Graph.Authentication' # Used for Connect-MgGraph, Disconnect-MgGraph, & Get-MgContext. A required module for all Graph modules.
+    Import-Module -Name $ModuleName -ErrorAction SilentlyContinue 
+    $RequiredModules.Add($ModuleName)
+
+    # If Mail is enabled (based on the config item 'AllowableMessageTypes' containing 'Mail'), check for the needed module.
+    if ($ServiceConfig.AllowableMessageTypes -contains 'Mail')
+    {
+        [string]$ModuleName = 'Microsoft.Graph.Users.Actions' # Used for Send-MgUserMail.
+        Import-Module -Name $ModuleName -ErrorAction SilentlyContinue 
+        $RequiredModules.Add($ModuleName)
+    }
+    
+    # If Chat is enabled (based on the config item 'AllowableMessageTypes' containing 'Chat'), check for the needed module.
+    if ($ServiceConfig.AllowableMessageTypes -contains 'Chat')
+    {
+        [string]$ModuleName = 'Microsoft.Graph.Teams' # Used for New-MgChat & New-MgChatMessage.
+        Import-Module -Name $ModuleName -ErrorAction SilentlyContinue 
+        $RequiredModules.Add($ModuleName)
+    }
+
+    # If uploads are enabled (based on the config item 'MgDelegatedPermission_RequestFilesReadWritePermission' being set to true), check for the needed module.
     if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
     {
-        Import-Module 'Microsoft.Graph.Files' -ErrorAction SilentlyContinue # Used for Get-MgUserDrive
-
-        # Check for modules.
-        if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams') -or !(Get-Module -Name 'Microsoft.Graph.Files'))
-        {
-            # Module is not available.
-            Write-Error "Please first install the Microsoft.Graph.Users.Actions, Microsoft.Graph.Teams, & Microsoft.Graph.Files sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
-            Return
-        }
+        [string]$ModuleName = 'Microsoft.Graph.Files' # Used for Get-MgUserDrive
+        Import-Module -Name $ModuleName -ErrorAction SilentlyContinue 
+        $RequiredModules.Add($ModuleName)
     }
-    else
+
+    # Check for missing Graph modules.
+    $ImportedModules = Get-Module
+    $MissingModules = Compare-Object -ReferenceObject $RequiredModules -DifferenceObject $ImportedModules | Where-Object { $_.SideIndicator -eq '<=' } | Select-Object -ExpandProperty InputObject
+    if ($MissingModules.Count -gt 0)
     {
-        # Check for modules.
-        if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions') -or !(Get-Module -Name 'Microsoft.Graph.Teams'))
-        {
-            # Module is not available.
-            Write-Error "Please first install the Microsoft.Graph.Users.Actions & Microsoft.Graph.Teams sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
-            Return
-        }
+        Write-Error "Please first install the following sub-modules from https://www.powershellgallery.com/packages/Microsoft.Graph/: $($MissingModules -join ', ')"
+        Return
     }
 
     # Connect to the Microsoft Graph API.      
@@ -526,6 +539,7 @@ function Send-ScriptMessage_MgGraph
                 }
                 [array]$Message['Attachment'] = ConvertTo-IMicrosoftGraphAttachment -Attachment $Attachment
                 
+                # TODO: Allow OPTION For Files To Be Shared Via OneDrive/SharePoint Instead Of As Direct Attachments. Perhaps add a switch parameter to override the default config. Maybe even have a config option of use OneDrive when over x Bytes. Set to 0 to always.
                 # Build Email
                 $EmailParams = [ordered]@{
                     SaveToSentItems = $SaveToSentItems
