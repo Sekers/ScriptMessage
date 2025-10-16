@@ -12,11 +12,15 @@ function Get-ScriptMessageConfig
 
         .PARAMETER ConfigPath
         Optional. If not provided, the function will use the path used in the current session (if set).
+        .PARAMETER Service
+        Optional. Return only the info related to a specific service.
 
         .EXAMPLE
         Get-ScriptMessageConfig
         .EXAMPLE
         Get-ScriptMessageConfig -Path '.\Config\config_scriptmessage.json'
+        .EXAMPLE
+        Get-ScriptMessageConfig -Service MicrosoftGraph
     #>
 
     [CmdletBinding()]
@@ -25,7 +29,14 @@ function Get-ScriptMessageConfig
         Position=0,
         ValueFromPipeline=$true,
         ValueFromPipelineByPropertyName=$true)]
-        [string]$Path = $ScriptMessage_Global_ConfigFilePath # If not entered will see if it can pull path from this variable.
+        [string]$Path = $ScriptMessage_Global_ConfigFilePath, # If not entered will see if it can pull path from this variable.
+
+        [Parameter(
+        Position=1,
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
+        [MessagingService]$Service
     )
     
     # Make Sure Requested Path Isn't Null or Empty (better to catch it here than validating on the parameter of this function)
@@ -38,7 +49,14 @@ function Get-ScriptMessageConfig
     try
     {
         $ScriptMessageConfig = Get-Content -Path "$Path" -ErrorAction 'Stop' | ConvertFrom-Json
-        return $ScriptMessageConfig 
+        if (-not ($null -eq $Service))
+        {
+            return $ScriptMessageConfig.$Service
+        }
+        else
+        {
+            return $ScriptMessageConfig
+        } 
     }
     catch
     {
