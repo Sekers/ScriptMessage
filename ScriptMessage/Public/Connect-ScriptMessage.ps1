@@ -36,13 +36,10 @@ function Connect-ScriptMessage
         ValueFromPipelineByPropertyName=$true)]
         [switch]$ReturnConnectionInfo
     )
-
-    # Set the necessary configuration variables.
-    $ScriptMessageConfig = Get-ScriptMessageConfig
     
     # Set the connection parameters.
     $ConnectionParameters = @{
-        ServiceConfig = $ScriptMessageConfig.$Service
+        ServiceConfig = Get-ScriptMessageConfig -Service $Service
     }
     
     # Connect to the proper service.
