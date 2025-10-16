@@ -79,7 +79,7 @@ function Send-ScriptMessage
         }
     }
 
-    Send-ScriptMessage -Service -Type 'Mail', 'Chat' MgGraph @MessageArguments
+    Send-ScriptMessage -Service MgGraph -Type 'Mail', 'Chat' @MessageArguments
     .EXAMPLE
     $MessageArguments = @{
         From = @{
