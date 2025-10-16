@@ -16,9 +16,9 @@ function Connect-ScriptMessage
         Returns connection information after performing function.
 
         .EXAMPLE
-        Connect-ScriptMessage -Service MgGraph
+        Connect-ScriptMessage -Service MicrosoftGraph
         .EXAMPLE
-        Connect-ScriptMessage -Service MgGraph -ReturnConnectionInfo
+        Connect-ScriptMessage -Service MicrosoftGraph -ReturnConnectionInfo
     #>
 
     [CmdletBinding()]
@@ -48,7 +48,7 @@ function Connect-ScriptMessage
     # Connect to the proper service.
     switch ($Service)
     {
-        MgGraph {Connect-ScriptMessage_MGGraph @ConnectionParameters}
+        MicrosoftGraph {Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters}
     }
     
     # Return the connection information, if requested.

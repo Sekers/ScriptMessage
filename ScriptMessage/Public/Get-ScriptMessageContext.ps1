@@ -17,10 +17,10 @@ function Get-ScriptMessageContext
         Returns the cached context information if it exists to reduce API calls.
 
         .EXAMPLE
-        Get-ScriptMessageContext -Service MgGraph
+        Get-ScriptMessageContext -Service MicrosoftGraph
 
         .EXAMPLE
-        Get-ScriptMessageContext -Service MgGraph -ReturnCachedContext
+        Get-ScriptMessageContext -Service MicrosoftGraph -ReturnCachedContext
     #>
 
     [CmdletBinding()]
@@ -61,7 +61,7 @@ function Get-ScriptMessageContext
         # Retrieve connection information.
         switch ($Service)
         {
-            MgGraph {
+            MicrosoftGraph {
                 $MgContext = Get-MgContext
                 if ([string]::IsNullOrEmpty($MgContext))
                 {

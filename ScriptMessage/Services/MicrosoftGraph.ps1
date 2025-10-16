@@ -247,7 +247,7 @@ function ConvertTo-IMicrosoftGraphDriveInvite
     return $IMicrosoftGraphDriveInvite
 }
 
-function Connect-ScriptMessage_MgGraph
+function Connect-ScriptMessage_MicrosoftGraph
 {
     [CmdletBinding()]
     param(
@@ -258,7 +258,7 @@ function Connect-ScriptMessage_MgGraph
         [pscustomobject]$ServiceConfig
     )
 
-    # Check For Microsoft.Graph Modules
+    # Check For MicrosoftGraph Modules
     # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
     $RequiredModules = [System.Collections.Generic.List[Object]]::new()
 
@@ -416,12 +416,12 @@ function Connect-ScriptMessage_MgGraph
     }
 }
 
-function Disconnect-ScriptMessage_MGGraph
+function Disconnect-ScriptMessage_MicrosoftGraph
 {
     return Disconnect-MgGraph
 }
 
-function Send-ScriptMessage_MgGraph
+function Send-ScriptMessage_MicrosoftGraph
 {
     [CmdletBinding()]
     param(
@@ -508,7 +508,7 @@ function Send-ScriptMessage_MgGraph
     )
 
     # Set the Service ID.
-    $ServiceId = 'MgGraph'
+    $ServiceId = 'MicrosoftGraph'
 
     # Send the message on each supported service specified.
     foreach ($typeItem in $Type)
@@ -652,8 +652,8 @@ function Send-ScriptMessage_MgGraph
                 }
                 else
                 {
-                    # Grab the latest MgGraph service context.
-                    $MgGraphContext = Get-ScriptMessageContext -Service $ServiceId
+                    # Grab the latest MicrosoftGraph service context.
+                    $MicrosoftGraphContext = Get-ScriptMessageContext -Service $ServiceId
 
                     # Check For Separate 'SenderID' Value. Make equal to 'From' if not provided.
                     if ([string]::IsNullOrEmpty($SenderId))
@@ -724,12 +724,12 @@ function Send-ScriptMessage_MgGraph
                             if (-not [string]::IsNullOrEmpty($Attachment))
                             {
                                 # Upload the attached file(s) to OneDrive.
-                                $MgUserDrive = Get-MgUserDrive -UserId $($MgGraphContext.Account)
+                                $MgUserDrive = Get-MgUserDrive -UserId $($MicrosoftGraphContext.Account)
                                 $TeamsChatFolder = 'root:/Microsoft Teams Chat Files'
                                 # Upload files. This method only supports files up to 250 MB in size. For larger files, we would need to implement the "createUploadSession" method.
                                 [array]$MgDriveItem = foreach ($attachmentItem in $Attachment)
                                 {
-                                    $MgGraphDriveEndpointUri = 'https://graph.microsoft.com/v1.0/drives/'
+                                    $MicrosoftGraphDriveEndpointUri = 'https://graph.microsoft.com/v1.0/drives/'
                                     $AttachmentFileName = $attachmentItem.Name
                                     
                                     # Get a list of existing files in the Teams Chat Files folder and rename if a file already exists with the same name.
@@ -761,7 +761,7 @@ function Send-ScriptMessage_MgGraph
 
                                     # Upload File # TODO: Test weird characters in filename like pound or something
                                     $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
-                                    $InvokeUri = $($MgGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
+                                    $InvokeUri = $($MicrosoftGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
                                     
                                     # Output the drive upload result.
                                     #Set-MgDriveItemContent -DriveId $MgUserDrive.Id -DriveItemId $DriveItemId -InFile $Attachment[0] # Overwrites file if it exists
@@ -840,7 +840,7 @@ function Send-ScriptMessage_MgGraph
                                     )
 
                                     # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by the last time the chat OBJECT was updated.
-                                    [array]$MicrosoftGraphScopes = $MgGraphContext | Select-Object -ExpandProperty Scopes
+                                    [array]$MicrosoftGraphScopes = $MicrosoftGraphContext | Select-Object -ExpandProperty Scopes
                                     if (@($MicrosoftGraphScopes) -contains 'Chat.Read' -or @($MicrosoftGraphScopes) -contains 'Chat.ReadWrite')
                                     {
                                         # It is slower, but we are using the -All parameter so that there is an accurate history of chats. Otherwise, it's possible that we can have multiple groups with the same members from your scripts.

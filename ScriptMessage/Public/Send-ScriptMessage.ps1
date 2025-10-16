@@ -67,7 +67,7 @@ function Send-ScriptMessage
         }
     }
 
-    Send-ScriptMessage -Service MgGraph -Type 'Mail' @MessageArguments
+    Send-ScriptMessage -Service MicrosoftGraph -Type 'Mail' @MessageArguments
     .EXAMPLE 
     $MessageArguments = @{
         From = 'jdoe@domain.com'
@@ -79,7 +79,7 @@ function Send-ScriptMessage
         }
     }
 
-    Send-ScriptMessage -Service MgGraph -Type 'Mail', 'Chat' @MessageArguments
+    Send-ScriptMessage -Service MicrosoftGraph -Type 'Mail', 'Chat' @MessageArguments
     .EXAMPLE
     $MessageArguments = @{
         From = @{
@@ -102,7 +102,7 @@ function Send-ScriptMessage
         SenderId = 'senderaccount@domain.com'
     }
 
-    Send-ScriptMessage -Service MgGraph @MessageArguments
+    Send-ScriptMessage -Service MicrosoftGraph @MessageArguments
     .EXAMPLE
     # Attachments From Variable - Option 1: PS Desktop or Core
     $Content1 = [System.IO.File]::ReadAllBytes('C:\Users\John\Downloads\MyPDF.pdf')
@@ -305,7 +305,7 @@ function Send-ScriptMessage
 
         switch ($($serviceTypeObj.Service))
         {
-            'MgGraph'   {
+            'MicrosoftGraph'   {
                 $SendMessageParameters = [ordered]@{
                     From = $From
                     ReplyTo = $ReplyTo
@@ -322,7 +322,7 @@ function Send-ScriptMessage
                     IncludeBCCInGroupChat = $IncludeBCCInGroupChat
                 }
 
-                Send-ScriptMessage_MgGraph @SendMessageParameters
+                Send-ScriptMessage_MicrosoftGraph @SendMessageParameters
 
                 # Disconnect from Microsoft Graph API, if enabled in config.
                 if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)

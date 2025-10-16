@@ -3,11 +3,11 @@ DynamicParam
     # Initialize Parameter Dictionary
     $ParameterDictionary = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
 
-    # Make Mg* parameters appear only if messaging 'Service' is 'MgGraph'.
-    if ($Service -eq 'MgGraph')
+    # Make Mg* parameters appear only if messaging 'Service' is 'MicrosoftGraph'.
+    if ($Service -eq 'MicrosoftGraph')
     { 
         $ParameterAttributes = [System.Management.Automation.ParameterAttribute]@{
-            ParameterSetName = "MgGraph"
+            ParameterSetName = "MicrosoftGraph"
             Mandatory = $true
             ValueFromPipeline = $true
             ValueFromPipelineByPropertyName = $true
@@ -42,7 +42,7 @@ begin
     # Set Variables From Dynamic Parameters
     switch ($Service)
     {
-        'MgGraph' {
+        'MicrosoftGraph' {
             $MgPermissionType = $PSBoundParameters['MgPermissionType']
             $MgDisconnectWhenDone = $PSBoundParameters['MgDisconnectWhenDone']
             $MgTenantID = $PSBoundParameters['MgTenantID']

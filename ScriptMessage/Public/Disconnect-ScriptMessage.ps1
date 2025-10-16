@@ -16,9 +16,9 @@ function Disconnect-ScriptMessage
         Returns connection information after performing function.
 
         .EXAMPLE
-        Disconnect-ScriptMessage -Service MgGraph
+        Disconnect-ScriptMessage -Service MicrosoftGraph
         .EXAMPLE
-        Disconnect-ScriptMessage -Service MgGraph -ReturnConnectionInfo
+        Disconnect-ScriptMessage -Service MicrosoftGraph -ReturnConnectionInfo
     #>
 
     [CmdletBinding()]
@@ -40,7 +40,7 @@ function Disconnect-ScriptMessage
     # Disconnect from the proper service.
     $ServiceDisconnectReturnInfo = switch ($Service)
     {
-        MgGraph {Disconnect-ScriptMessage_MGGraph}
+        MicrosoftGraph {Disconnect-ScriptMessage_MicrosoftGraph}
     }
 
     # Return the disconnection information, if requested.
@@ -61,7 +61,7 @@ function Disconnect-ScriptMessage
         # Add in disconnection information.
         switch ($Service)
         {
-            MgGraph {
+            MicrosoftGraph {
                 if ([string]::IsNullOrEmpty($ServiceDisconnectReturnInfo))
                 {
                     break # Terminate the switch statement.

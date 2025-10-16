@@ -8,7 +8,7 @@ New-Variable -Name 'ScriptMessage_Global_CachedServiceContext' -Value ([PSCustom
 # Public Enum
 # Name: MessagingService
 enum MessagingService {
-    MgGraph
+    MicrosoftGraph
 }
 
 # Public Enum
