@@ -584,7 +584,7 @@ function Send-ScriptMessage_MicrosoftGraph
                 catch
                 {
                     # Catch any errors and return as part of the $SendScriptMessageResult object.
-                    $NewMessage = $_.Exception
+                    $NewMessage = $_
                     $MgErrorMessages += "$NewMessage"
                 }
 
@@ -937,7 +937,7 @@ function Send-ScriptMessage_MicrosoftGraph
                 catch
                 {
                     # Catch any errors and return as part of the $SendScriptMessageResult object.
-                    $NewMessage = $_.Exception
+                    $NewMessage = $_
                     $MgErrorMessages += "$NewMessage"
                 }
                 
