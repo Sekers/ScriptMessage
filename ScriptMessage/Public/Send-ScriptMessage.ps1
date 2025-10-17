@@ -283,7 +283,7 @@ function Send-ScriptMessage
         }
     }
 
-    foreach ($serviceTypeObj in $ServiceType)
+    foreach ($serviceTypeObj in $ServiceType) # TODO: Catch errors once we have multiple services so if one fails the other(s) can still be processed.
     {
         # Set the connection parameters.
         $ConnectionParameters = @{

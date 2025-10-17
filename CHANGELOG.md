@@ -1,5 +1,28 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.1.0](https://github.com/Sekers/ScriptMessage/tree/1.1.0) - (2025-10-16)
+
+### Fixes
+
+- ScriptMessage now properly allows for for NULL in TO, CC, BCC parameters in Microsoft Graph.
+- Reverted recently added code formatting that included Begin\End process blocks as the way they were implemented caused bugs.
+- Catch if a Teams Chat attachments folder does not already exists in the user's OneDrive.
+- The 'AllowableMessageTypes' Microsoft Graph configuration is now being applied properly.
+
+### Features
+
+- Much better error handling with the Microsoft Graph service. Warnings and Errors are now collected and if one service type has an error the command will still process the other service type (when applicable).
+- Get-ScriptMessageConfig can now optionally pull data for a specific service only. Returning all services configurations is still the default.
+- Sending multiple attachments in a single email or chat now works with Microsoft Graph.
+- Sending attachments with non-standard filenames (uploaded to the user's OneDrive) using Microsoft Graph Chat is now supported.
+
+### Other
+
+- Changes made to only import necessary Microsoft Graph PowerShell modules.
+
+Author: [**@Sekers**](https://github.com/Sekers)
+
+---
 ## [1.0.8](https://github.com/Sekers/ScriptMessage/tree/1.0.8) - (2025-09-18)
 
 ### Fixes
