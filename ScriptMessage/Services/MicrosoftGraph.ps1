@@ -107,10 +107,10 @@ Function ConvertTo-IMicrosoftGraphAttachment
         if (($currentAttachment.ContainsKey('Name')) -and $currentAttachment.ContainsKey('Content'))
         {
             $Attachment_ByteEncoded = [System.Convert]::ToBase64String($currentAttachment.Content)
-            [PSCustomObject]$IMicrosoftGraphAttachmentItem = @{
+            $IMicrosoftGraphAttachmentItem = @{
                 "@odata.type" = "#microsoft.graph.fileAttachment"
-                Name          = $currentAttachment.Name
-                ContentBytes  = $Attachment_ByteEncoded
+                name          = $currentAttachment.Name
+                contentBytes  = $Attachment_ByteEncoded
             }
             $IMicrosoftGraphAttachmentItem
         }
@@ -144,10 +144,10 @@ Function ConvertTo-IMicrosoftGraphChatMessageAttachment
     {       
         if ($currentAttachment.ContainsKey('name') -and $currentAttachment.ContainsKey('webUrl'))
         {
-            [PSCustomObject]$IMicrosoftGraphChatMessageAttachmentItem = @{
-                ContentType = 'reference'
-                ContentUrl  = $currentAttachment.webUrl
-                Name        = $currentAttachment.name
+            $IMicrosoftGraphChatMessageAttachmentItem = @{
+                contentType = 'reference'
+                contentUrl  = $currentAttachment.webUrl
+                name        = $currentAttachment.name
             }
             $IMicrosoftGraphChatMessageAttachmentItem
         }
@@ -806,20 +806,20 @@ function Send-ScriptMessage_MicrosoftGraph
                                         $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
                                     }
 
-                                # Convert Parameters to IMicrosoft*
-                                $Message = @{}
-                                if (-not [string]::IsNullOrEmpty($Body.Content))
-                                {
-                                    if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+                                    # Convert Parameters to IMicrosoft*
+                                    $Message = @{}
+                                    if (-not [string]::IsNullOrEmpty($Body.Content))
                                     {
-                                        [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
+                                        if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+                                        {
+                                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
+                                        }
+                                        else
+                                        {
+                                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
+                                        }
                                     }
-                                    else
-                                    {
-                                        [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
-                                    }
-                                }
-                                $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
+                                    $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
 
                                     $ChatParams = [ordered]@{
                                         Body = $Message.Body
@@ -857,7 +857,7 @@ function Send-ScriptMessage_MicrosoftGraph
                                             }
                                         }
                                     }
-                                    Group #TODO: Sending more than one attachment causes no attachments to be included in the chat message.
+                                    Group
                                     {
                                         # Collect Group Members
                                         [array]$Member_ChatRecipients = [array](ConvertTo-IMicrosoftGraphConversationMember -EmailAddress $ChatRecipients)
