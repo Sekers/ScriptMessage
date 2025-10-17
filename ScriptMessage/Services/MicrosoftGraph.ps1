@@ -685,7 +685,7 @@ function Send-ScriptMessage_MicrosoftGraph
                     }
                     else
                     {
-                        # Application CHAT permissions are only supported for migration into a Teams Channel. #TODO: TEST THIS AGAIN AFTER ALL THE CHANGES. MAKE SURE RETURN INFO IS OK.
+                        # Application CHAT permissions are only supported for migration into a Teams Channel.
                         if ($ServiceConfig.MgPermissionType -eq 'Application')
                         {
                             $NewMessage = "Chat not sent. Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
@@ -801,8 +801,11 @@ function Send-ScriptMessage_MicrosoftGraph
                                                 $AttachmentFileName = "{0} {1}{2}" -f ($FileBaseName -replace ' \d+$',''), $FileNameCounter, $FileExtension
                                             }
 
-                                            # Upload File # TODO: Test weird characters in filename like pound or something
-                                            $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName):"
+                                            # Encode the filename to handle special characters in the filename when used in the URI.
+                                            $AttachmentFileName_Encoded = [System.Web.HttpUtility]::UrlEncode($AttachmentFileName)
+
+                                            # Upload File
+                                            $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName_Encoded):"
                                             $InvokeUri = $($MicrosoftGraphDriveEndpointUri + $MgUserDrive.Id + '/' + $DriveItemId + '/content')
                                             
                                             # Output the drive upload result.
