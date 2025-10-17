@@ -11,35 +11,26 @@ function ConvertTo-ScriptMessageBodyObject
         [pscustomobject]$Body
     )
 
-    begin
+    if ([string]::IsNullOrEmpty($Body))
     {
-        if ([string]::IsNullOrEmpty($Body))
-        {
-            return $null
-        }
+        return $null
     }
 
-    process
+    # Check if 'Body' is string. If it is, turn into a PSobject.
+    if ($Body.GetType().Name -eq 'String')
     {
-        # Check if 'Body' is string. If it is, turn into a PSobject.
-        if ($Body.GetType().Name -eq 'String')
-        {
-            $ScriptMessageBodyObject = [PSCustomObject]@{
-                ContentType = 'Text'
-                Content = $Body
-            }
-        }
-        else # Return item as properly formatted PSObject that includes the 'ContentType' property.
-        {
-            $ScriptMessageBodyObject = [PSCustomObject]@{
-                ContentType = $Body.ContentType
-                Content = $Body.Content
-            }
+        $ScriptMessageBodyObject = [PSCustomObject]@{
+            ContentType = 'Text'
+            Content = $Body
         }
     }
-
-    end
+    else # Return item as properly formatted PSObject that includes the 'ContentType' property.
     {
-        return $ScriptMessageBodyObject
+        $ScriptMessageBodyObject = [PSCustomObject]@{
+            ContentType = $Body.ContentType
+            Content = $Body.Content
+        }
     }
+    
+    return $ScriptMessageBodyObject
 }

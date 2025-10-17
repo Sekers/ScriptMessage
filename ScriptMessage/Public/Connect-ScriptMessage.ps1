@@ -16,9 +16,9 @@ function Connect-ScriptMessage
         Returns connection information after performing function.
 
         .EXAMPLE
-        Connect-ScriptMessage -Service MgGraph
+        Connect-ScriptMessage -Service MicrosoftGraph
         .EXAMPLE
-        Connect-ScriptMessage -Service MgGraph -ReturnConnectionInfo
+        Connect-ScriptMessage -Service MicrosoftGraph -ReturnConnectionInfo
     #>
 
     [CmdletBinding()]
@@ -36,33 +36,21 @@ function Connect-ScriptMessage
         ValueFromPipelineByPropertyName=$true)]
         [switch]$ReturnConnectionInfo
     )
-
-    begin
-    {
-        # Set the necessary configuration variables.
-        $ScriptMessageConfig = Get-ScriptMessageConfig
-        
-        # Set the connection parameters.
-        $ConnectionParameters = @{
-            ServiceConfig = $ScriptMessageConfig.$Service
-        }
+    
+    # Set the connection parameters.
+    $ConnectionParameters = @{
+        ServiceConfig = Get-ScriptMessageConfig -Service $Service
     }
-
-    process #TODO: Can this check if already connected???
+    
+    # Connect to the proper service.
+    switch ($Service)
     {
-        # Connect to the proper service.
-        switch ($Service)
-        {
-            MgGraph {Connect-ScriptMessage_MGGraph @ConnectionParameters}
-        }
+        MicrosoftGraph {Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters}
     }
-
-    end
-    {
-        # Return the connection information, if requested.
-        if ($ReturnConnectionInfo)
-        {  
-            return Get-ScriptMessageContext -Service $Service
-        }
+    
+    # Return the connection information, if requested.
+    if ($ReturnConnectionInfo)
+    {  
+        return Get-ScriptMessageContext -Service $Service
     }
 }

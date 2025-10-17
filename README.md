@@ -4,7 +4,7 @@
 
 - [This Module is in Public Preview](#this-module-is-in-public-preview)
 - [Overview](#overview)
-- [Currently Supported Services](#currently-supported-services)
+- [Supported Services](#supported-services)
 - [What's New](#whats-new)
 - [Documentation](#documentation)
 - [Developing and Contributing](#developing-and-contributing)
@@ -23,7 +23,7 @@ ScriptMessage is designed to simplify the use of messaging services in PowerShel
 - Specify more than one service in a single command to easily send the same message multiple ways for redundancy or other purposes. For example, you might want to send an email using Microsoft Graph and a chat message using both Teams & Slack for the same alert.
 - Easily switch the desired messaging service(s) in your scripts by updating simple config files. Whether your current messaging service is deprecated, you need to add a new service, or switch to a different service, you will no longer need to rewrite all of your scripts.
 
-## Currently Supported Services
+## Supported Services
 
 - [**Microsoft Graph SDK PowerShell:**](https://learn.microsoft.com/en-us/powershell/microsoftgraph/overview?view=graph-powershell-1.0) Take advantage of the Microsoft Graph SDK PowerShell module to send email and chat messages using the Graph API without having to learn all the object formatting that the API requires (which unfortunately the SDK doesn't simplify).
   - Since the Microsoft Graph API only supports Teams Chat when using delegated [permissions](https://learn.microsoft.com/en-us/graph/permissions-overview), we are looking into [Teams Bots](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/overview) support for future releases to allow for application permissions.
