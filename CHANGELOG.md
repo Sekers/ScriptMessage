@@ -18,6 +18,7 @@
 
 ### Other
 
+- BREAKING CHANGE: Renamed the Microsoft Graph service from 'MgGraph' to 'MicrosoftGraph'. Please update your configuration files as needed.
 - Changes made to only import necessary Microsoft Graph PowerShell modules.
 
 Author: [**@Sekers**](https://github.com/Sekers)
