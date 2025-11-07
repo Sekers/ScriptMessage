@@ -384,7 +384,7 @@ function Connect-ScriptMessage_MicrosoftGraph
                         $MgApp_EncryptedCertificatePassword = $ServiceConfig.MgApp_EncryptedCertificatePassword
                         if ([string]::IsNullOrEmpty($MgApp_EncryptedCertificatePassword))
                         {
-                            $NewMessage = "Cannot access .pfx private key certificate file and no password has been provided."
+                            $NewMessage = "Cannot access Microsoft Graph .pfx private key certificate file and no password has been provided."
                             throw $NewMessage
                         }
                         else
