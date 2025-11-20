@@ -7,7 +7,7 @@
         "MgPermissionType": "Application",
         "MgDelegatedPermission_RequestChatReadPermission": true,
         "MgDelegatedPermission_RequestFilesReadWritePermission": true,
-        "MgDisconnectWhenDone": false,
+        "MgDisconnectWhenDone": true,
         "MgTenantID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
         "MgClientID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
         "MgApp_AuthenticationType": "CertificateThumbprint",
