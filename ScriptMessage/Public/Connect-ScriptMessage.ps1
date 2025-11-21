@@ -48,7 +48,7 @@ function Connect-ScriptMessage
             Import-Module -Name 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
             if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions')) {
                 # Module is not available.
-                Write-Error "Please First Install the Microsoft Graph Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
+                Write-Error "Please First Install the Microsoft.Graph.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
                 Return
             }
             Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters
