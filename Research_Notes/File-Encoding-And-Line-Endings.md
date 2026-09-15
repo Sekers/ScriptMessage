@@ -14,7 +14,7 @@ Measured on **2026-09-15** on Windows 11 (10.0.26200), with Windows PowerShell *
 
 > **The one-line summary:** Windows PowerShell 5.1 silently misreads a non-ASCII character in a script file
 > that has no byte order mark, and Git hides line-ending changes from `git diff` while still listing the files
-> in `git status`. Keep the repository ASCII, and check line endings with `git ls-files --eol`.
+> in `git status`. Keep PowerShell files ASCII, and check line endings with `git ls-files --eol`.
 
 ## 1. Measured: a non-ASCII character in a script file without a BOM
 
@@ -26,8 +26,13 @@ A two-line script that assigns one em dash (U+2014) to a string and prints the s
 | UTF-8 with BOM | `length=1` | `length=1` |
 
 Windows PowerShell 5.1 read the em dash's three UTF-8 bytes as three characters, with no error or warning.
-PowerShell 7 read both files correctly. This is why the repository rule is "ASCII only" rather than "UTF-8
-with a BOM": with no non-ASCII characters, whether a file has a BOM makes no difference to either edition.
+PowerShell 7 read both files correctly. This is why PowerShell files in this repository are ASCII only rather
+than UTF-8 with a BOM: with no non-ASCII characters, whether a file has a BOM makes no difference to either
+edition. The row saved with a BOM is the fallback for a module manifest that genuinely needs a non-ASCII
+character, since a `.psd1` cannot contain an escape such as `[char]0x00E9`.
+
+**Unverified:** whether `Get-Content` misreads a UTF-8 JSON configuration file without a BOM in the same way on
+Windows PowerShell 5.1. Only script files were measured.
 
 ## 2. Measured: the repository before normalization
 

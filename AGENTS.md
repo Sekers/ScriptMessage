@@ -38,9 +38,10 @@ An entry describes what changed for someone **upgrading from the last released v
 "Fixed ..." entry, verify the bug actually existed in that release.
 
 **Derive the release. Do not trust a version number written down anywhere, including here or in
-`ScriptMessage/ScriptMessage.psd1`.** A release is a tag: publishing a GitHub release from it runs
-`.github/workflows/PSGallery.yml`, which pushes that build to the PowerShell Gallery. `origin/main` can sit a
-few commits past the tag (a changelog-only commit after a release, for example), so ask for the nearest tag
+`ScriptMessage/ScriptMessage.psd1`.** A release is an annotated tag; pushing it runs
+`.github/workflows/Release.yml`, which publishes that build to the PowerShell Gallery and then creates the GitHub
+release ([RELEASING.md](./RELEASING.md) describes the whole process and the versioning rules). `origin/main` can
+sit past the last tag (1.1.0 got a changelog-only commit after its tag, for example), so ask for the nearest tag
 rather than an exact match:
 
 ```powershell
@@ -64,15 +65,15 @@ git tag --contains <commit>   # no output = the commit that introduced the bug n
 This is easy to get wrong while a release is in progress, because a lot of churn happens on `develop`, and a
 fix to something that itself landed after the last tag is invisible to users. The checks above settle it.
 
-**A function that does not exist in the last release** belongs under **Features** as a new function only. It
-can never also appear as a "Fixed" entry, and it should not be listed among the functions a fix "affects."
-The same goes for a new configuration setting or message type.
+**A function that does not exist in the last release** belongs under **Added** as a new function only. It can
+never also appear as a "Fixed" entry, and it should not be listed among the functions a fix "affects." The same
+goes for a new configuration setting or message type.
 
 **A change the module adapted to is not a fix.** "Fixed" claims a defect in this module. If the code was never
 wrong and something underneath it changed (the Microsoft Graph API, the Microsoft Graph PowerShell SDK, or
-PowerShell itself), the entry belongs in **Features**, or in **Other** when it only changes a requirement such
-as a minimum SDK version. The giveaway is that the change in behavior already reached users on the last
-release without any change in this repository.
+PowerShell itself), the entry belongs in **Changed**, or in **Added** when it gives callers something new. The
+giveaway is that the change in behavior already reached users on the last release without any change in this
+repository.
 
 ### Write for the end user, never for the module developer
 
@@ -114,26 +115,32 @@ contradiction in one bullet; as two bullets, each reader finds their half immedi
 
 ### Structure and style
 
-- Newest version first. Each version uses this heading shape and ends with the author line, and a `---` line
-  separates it from the next (older) version:
+The format is [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). [RELEASING.md](./RELEASING.md)
+covers when `[Unreleased]` becomes a version and how that version is chosen.
+
+- **New entries go under `## [Unreleased]`** at the top of the file. Never invent a version number for them;
+  the release-prep pull request turns `[Unreleased]` into a dated version heading.
+- Newest version first. A released version uses this heading shape, and a `---` line separates it from the next
+  (older) version:
 
   ```markdown
-  ## [1.1.0](https://github.com/Sekers/ScriptMessage/tree/1.1.0) - (2025-10-16)
+  ## [1.2.0](https://github.com/Sekers/ScriptMessage/tree/1.2.0) - 2026-09-20
 
-  ### Fixes
+  ### Fixed
 
   - ...
-
-  Author: [**@Sekers**](https://github.com/Sekers)
   ```
 
-- Sections in order: `### Fixes`, `### Features`, `### Other`. Omit a section that has no entries.
-- Prefix an entry with `Minor:` inside **Fixes** when a user probably never noticed it: help text wording, a
+- Sections in order: `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security`.
+  Omit a section that has no entries.
+- Versions 1.1.0 and earlier use `### Fixes`, `### Features`, and `### Other`, with an author line. Leave them
+  as they are.
+- Prefix an entry with `Minor:` inside **Fixed** when a user probably never noticed it: help text wording, a
   message, an edge case needing unusual conditions to hit, or a cost the module absorbed itself such as an
-  extra Microsoft Graph request. List the `Minor:` entries after the rest of the Fixes.
+  extra Microsoft Graph request. List the `Minor:` entries after the rest of the Fixed entries.
 - Prefix an entry with `BREAKING CHANGE:` when it can break an existing script or configuration file, and say
-  what the user has to change.
-- A new public function reads `- New Function: <Function-Name> > <what it does>`.
+  what the user has to change. Such an entry usually belongs under **Changed** or **Removed**.
+- A new public function goes under **Added** and reads `- New Function: <Function-Name> > <what it does>`.
 - **No em dashes.** Use a semicolon, colon, parentheses, comma, or a new sentence. This applies to every file
   in the repo, not just the changelog.
 - In new entries, put code identifiers in backticks in Markdown, including parameter names, configuration
@@ -149,11 +156,16 @@ without going to look.
 
 - **LF everywhere.** Every text type is pinned `eol=lf`, which is what Git stores anyway, so a checked-out
   file is byte for byte the repository's copy on any platform and under any `core.autocrlf`.
-- **No byte order mark, and pure ASCII.** Every tracked text file is BOM-free and contains only ASCII. This
-  matters for PowerShell in particular: Windows PowerShell 5.1 reads a script file that has no BOM using the
-  system's legacy code page, so a single non-ASCII character (a curly quote or an em dash pasted into a message
-  string, for example) is silently misread there while working fine in PowerShell 7. Staying ASCII is what
-  makes the BOM unnecessary.
+- **UTF-8 with no byte order mark.** Every tracked text file is UTF-8 without a BOM.
+- **PowerShell files contain only ASCII.** This covers `.ps1`, `.psm1`, `.psd1`, and `.ps1xml` files. Windows
+  PowerShell 5.1 reads a PowerShell file that has no BOM using the system's legacy code page, so a single
+  non-ASCII character (a curly quote or an em dash pasted into a message string, for example) is silently
+  misread there while working fine in PowerShell 7. In code, write a non-ASCII character as an escape such as
+  `[char]0x00E9`. A `.psd1` cannot contain expressions, so if a module manifest genuinely needs a non-ASCII
+  character, save that one file as UTF-8 with a BOM, which both editions read correctly
+  (`Research_Notes/File-Encoding-And-Line-Endings.md` section 1).
+- **Other text files may contain non-ASCII characters**, such as a contributor's name in `CHANGELOG.md`. The
+  no-em-dash rule in the changelog's "Structure and style" section still applies to every file.
 - **The module writes no files at runtime.** It only reads the configuration file, which users create
   themselves. If a feature ever writes a file, choose its encoding deliberately: `Out-File -Encoding utf8`
   writes a BOM on Windows PowerShell 5.1 and none on PowerShell 7, and 5.1 has no `utf8NoBOM`.
@@ -168,15 +180,16 @@ and leaves `git status` clean. Use this instead, which wants `w/lf` on every row
 git ls-files --eol -- '*.ps1' '*.psm1' '*.psd1' '*.md' '*.json' '*.yml'
 ```
 
-Nothing enforces the BOM and ASCII rules automatically, so check them before committing. Run this from the
-repository root; it prints nothing when every tracked file passes:
+Nothing enforces the BOM and ASCII rules automatically yet, so check them before committing. Run this from the
+repository root; it prints nothing when every tracked file passes. A module manifest saved with a BOM on purpose
+is reported, and is the one expected exception:
 
 ```powershell
 git ls-files | ForEach-Object {
     $Path = Join-Path $PWD.ProviderPath $_   # .NET does not follow PowerShell's current location
     $Bytes = [System.IO.File]::ReadAllBytes($Path)
     if ($Bytes.Length -ge 3 -and $Bytes[0] -eq 0xEF -and $Bytes[1] -eq 0xBB -and $Bytes[2] -eq 0xBF) { "BOM: $_" }
-    if ([System.IO.File]::ReadAllText($Path) -match '[^\x00-\x7F]') { "Non-ASCII: $_" }
+    if (($_ -match '\.(ps1|psm1|psd1|ps1xml)$') -and ([System.IO.File]::ReadAllText($Path) -match '[^\x00-\x7F]')) { "Non-ASCII: $_" }
 }
 ```
 

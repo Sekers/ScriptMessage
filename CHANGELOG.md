@@ -1,13 +1,13 @@
 # Changelog for ScriptMessage PowerShell Module
 
-## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - (Unreleased)
+All notable changes to this module are documented in this file. The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and releases after 1.1.0 follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). [RELEASING.md](./RELEASING.md) explains how versions are chosen.
 
-### Fixes
+## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.1.0...develop)
+
+### Fixed
 
 - `Send-ScriptMessage` no longer rejects recipients given as a one-item array holding a recipient object, such as a single `Name` and `Address` entry read from a JSON configuration file. When those were the only recipients, it failed with "Please provide at least one parameter value for any of the following: To, CC, or BCC" and sent nothing.
 - Minor: `Send-ScriptMessage` now stops with that same error when the only recipients have blank addresses, such as an object or hashtable whose `Address` is empty, or a string of only spaces.
-
-Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
 ## [1.1.0](https://github.com/Sekers/ScriptMessage/tree/1.1.0) - (2025-10-16)
