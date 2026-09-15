@@ -1,4 +1,4 @@
-﻿# Global Variables
+# Global Variables
 New-Variable -Name 'ScriptMessage_Global_CachedServiceContext' -Value ([PSCustomObject]@{}) -Scope Global -Force
 
 # Aliases
