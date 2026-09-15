@@ -258,6 +258,11 @@ function Connect-ScriptMessage_MicrosoftGraph
         [pscustomobject]$ServiceConfig
     )
 
+    # Collect the connection settings from the service configuration.
+    $MgPermissionType = $ServiceConfig.MgPermissionType
+    $MgTenantID = $ServiceConfig.MgTenantID
+    $MgClientID = $ServiceConfig.MgClientID
+
     # Check For MicrosoftGraph Modules
     # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
     $RequiredModules = [System.Collections.Generic.List[Object]]::new()
@@ -284,7 +289,7 @@ function Connect-ScriptMessage_MicrosoftGraph
     }
 
     # If uploads are enabled (based on the config item 'MgDelegatedPermission_RequestFilesReadWritePermission' being set to true), check for the needed module.
-    if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+    if (($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true) -and ($MgPermissionType -eq 'Delegated'))
     {
         [string]$ModuleName = 'Microsoft.Graph.Files' # Used for Get-MgUserDrive
         Import-Module -Name $ModuleName -ErrorAction SilentlyContinue 
@@ -301,10 +306,6 @@ function Connect-ScriptMessage_MicrosoftGraph
     }
 
     # Connect to the Microsoft Graph API.      
-    $MgPermissionType = $ServiceConfig.MgPermissionType
-    $MgTenantID = $ServiceConfig.MgTenantID
-    $MgClientID = $ServiceConfig.MgClientID
-
     switch ($MgPermissionType)
     {
         Delegated {
@@ -348,7 +349,7 @@ function Connect-ScriptMessage_MicrosoftGraph
                         'Chat.ReadBasic' # Allows an app to read the members and descriptions of one-to-one and group chat threads, on behalf of the signed-in user.
                     )
                 }
-                if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+                if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true) # TODO: Do I want to allow 'Files.ReadWrite' for delegated email as well?
                 {
                     $MicrosoftGraphScopes += @(
                         'Files.ReadWrite' # Allows the app to read, create, update and delete the signed-in user's files.
