@@ -100,7 +100,8 @@ Leave out:
 - **Private helpers, internal variables and code paths.** Only name things a caller can actually use; check
   `FunctionsToExport` in `ScriptMessage/ScriptMessage.psd1` before naming a function. Service functions such
   as `Send-ScriptMessage_MicrosoftGraph` are private.
-- **How it was found, measured or diagnosed.** That belongs in the commit message or the code.
+- **How it was found, measured or diagnosed**, including pointers to `Research_Notes/`. Those notes are for
+  contributors, so link them from the commit message or the code, not from a user-facing entry.
 - **Anything with no observable effect on a caller.** If no script a user could reasonably write would have
   hit the bug, there is nothing to log.
 
@@ -197,3 +198,22 @@ $Text = [System.IO.File]::ReadAllText($Path)
   `AliasesToExport`.
 - **Comments describe the code as it is now**, never what it used to do or what a fix changed. Change history
   belongs in the commit message and the changelog.
+
+## Research notes
+
+Researched or measured behavior belongs in `Research_Notes/`, one file per behavior category (PowerShell
+language behavior, Microsoft Graph behavior, file encoding, and so on); list the directory to see what already
+exists. Add to the matching file, or create a new file for a new category rather than stretching an existing
+one.
+
+- **Label every claim with its evidence:** **Measured**, **From source** (read from a file in this
+  repository), **From documentation** (with the page linked), or **Unverified**. An unverified assumption the
+  module depends on is still worth recording, labelled as such.
+- **Date everything that can change.** Give the date and environment (PowerShell editions and versions, module
+  versions) for anything measured, and the date read for anything taken from documentation.
+- **Say what a result does not establish**, so a later reader does not stretch it past what was tested.
+- **Tie each behavior to the code it affects**, by file and function name rather than line number.
+- **The notes are for contributors.** Link them from commit messages and code comments, never from
+  `CHANGELOG.md` or other user-facing text.
+- **The safety rules above apply while gathering evidence:** no live sends without permission, and no tenant
+  name or email domain in a note.
