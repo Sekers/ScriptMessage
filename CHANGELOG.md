@@ -8,6 +8,8 @@ All notable changes to this module are documented in this file. The format is ba
 
 - `Send-ScriptMessage` no longer rejects recipients given as a one-item array holding a recipient object, such as a single `Name` and `Address` entry read from a JSON configuration file. When those were the only recipients, it failed with "Please provide at least one parameter value for any of the following: To, CC, or BCC" and sent nothing.
 - `Send-ScriptMessage` now sends Teams chat messages that have no attachments. A call using `-Type Chat` delivered nothing and returned "Cannot index into a null array" in the result's `Error` property, unless the same call also sent mail or the chat included an attachment. Both `OneOnOne` and `Group` chats were affected.
+- On Windows PowerShell 5.1, `Send-ScriptMessage` no longer fails to send Teams chat messages that have an attachment. Such a send could deliver nothing and report "Unable to find type [System.Web.HttpUtility]" in the result's `Error` property.
+- In both PowerShell editions, `Send-ScriptMessage` now escapes spaces in chat attachment filenames correctly when uploading them. A filename containing a space was uploaded to a path holding a plus sign in place of each space.
 - Minor: `Send-ScriptMessage` now stops with that same error when the only recipients have blank addresses, such as an object or hashtable whose `Address` is empty, or a string of only spaces.
 
 ---

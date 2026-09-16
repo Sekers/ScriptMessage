@@ -119,18 +119,32 @@ only.
 
 | Expression | Windows PowerShell 5.1 | PowerShell 7 |
 | --- | --- | --- |
-| `[System.Web.HttpUtility]::UrlEncode('My File+1.pdf')` | fails: "Unable to find type [System.Web.HttpUtility]" | `My+File%2b1.pdf` |
+| `[System.Web.HttpUtility]::UrlEncode('My File+1.pdf')` | fails on first use in a session: "Unable to find type [System.Web.HttpUtility]"; `My+File%2b1.pdf` later in that same session | `My+File%2b1.pdf` |
 | `[uri]::EscapeDataString('My File+1.pdf')` | `My%20File%2B1.pdf` | `My%20File%2B1.pdf` |
 
 `UrlEncode` produces form encoding, which turns a space into `+`. That is correct in a query string, but in a
 URL path a `+` is a literal plus sign. `EscapeDataString` needs no extra assembly in either edition and encodes
 a space as `%20`.
 
-**From source:** the Microsoft Graph chat attachment upload builds its drive item path with `UrlEncode`.
+**Measured (2026-09-16; Windows PowerShell 5.1.26100.9444 and PowerShell 7.6.6, Pester 6.1.0, Windows 11 build
+26200):** sending a chat attachment through `Send-ScriptMessage` with every Microsoft Graph cmdlet mocked, so no
+Graph module was imported, and with the upload still calling `UrlEncode` as it did before the switch to
+`EscapeDataString`. Under 5.1, the first upload in the session raised "Unable to find type
+[System.Web.HttpUtility]", which arrived in the result's `Error` property with `Status` left null, and a second
+upload later in that same session succeeded, building the path `My+File%2b1.pdf` from the filename
+`My File+1.pdf`. Under PowerShell 7 both uploads succeeded and built the same path. A failure here depends on
+what has already run in the session, so it can look intermittent.
+
+**From source:** the Microsoft Graph chat attachment upload in `Send-ScriptMessage_MicrosoftGraph` builds its
+drive item path with `[uri]::EscapeDataString`.
 
 ### What this does not establish
 
 - **Unverified:** whether importing the Microsoft Graph modules loads `System.Web` on Windows PowerShell 5.1.
   An attempt on 2026-09-15 could not import `Microsoft.Graph.Authentication` 2.25.0 in a non-interactive 5.1
-  session on the test machine (its format file failed the execution policy check), so this is still open.
+  session on the test machine (its format file failed the execution policy check), so this is still open. The
+  2026-09-16 run above mocked the Graph cmdlets instead of importing the modules, so it says nothing about this
+  either.
+- **Unverified:** why a later reference to the type succeeded in a session where the first had failed. Only the
+  outcome was observed, not the cause.
 - **Unverified:** what name OneDrive gives a file uploaded through a path containing `+`. Nothing was uploaded.

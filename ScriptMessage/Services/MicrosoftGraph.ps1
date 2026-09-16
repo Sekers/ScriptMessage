@@ -817,7 +817,7 @@ function Send-ScriptMessage_MicrosoftGraph
                                             }
 
                                             # Encode the filename to handle special characters in the filename when used in the URI.
-                                            $AttachmentFileName_Encoded = [System.Web.HttpUtility]::UrlEncode($AttachmentFileName)
+                                            $AttachmentFileName_Encoded = [uri]::EscapeDataString($AttachmentFileName)
 
                                             # Upload File
                                             $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName_Encoded):"

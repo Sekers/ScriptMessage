@@ -13,6 +13,10 @@ BeforeAll {
         function script:New-MgChat { param($ChatType, $Members) throw 'New-MgChat stand-in called without a mock.' }
         function script:New-MgChatMessage { param($ChatId, $BodyParameter) throw 'New-MgChatMessage stand-in called without a mock.' }
         function script:Get-MgChat { param([switch]$All, $Filter, $Property, $ExpandProperty) throw 'Get-MgChat stand-in called without a mock.' }
+        function script:Get-MgUserDrive { param($UserId) throw 'Get-MgUserDrive stand-in called without a mock.' }
+        function script:Get-MgDriveItem { param($DriveId, $DriveItemId, $ExpandProperty) throw 'Get-MgDriveItem stand-in called without a mock.' }
+        function script:Invoke-MgGraphRequest { param($Method, $Uri, $Body, $ContentType) throw 'Invoke-MgGraphRequest stand-in called without a mock.' }
+        function script:Invoke-MgInviteDriveItem { param($DriveId, $DriveItemId, $BodyParameter) throw 'Invoke-MgInviteDriveItem stand-in called without a mock.' }
     }
 }
 
@@ -219,6 +223,85 @@ Describe 'Send-ScriptMessage chat message' {
             Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly -ParameterFilter {
                 $BodyParameter.Body.Content -eq 'Test body'
             }
+        }
+    }
+
+    Context 'A one-on-one chat with an attachment' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Group'
+                        ChatType              = 'OneOnOne'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+            Mock -ModuleName ScriptMessage Get-MgUserDrive { [pscustomobject]@{ Id = 'drive-id' } }
+            Mock -ModuleName ScriptMessage Get-MgDriveItem { $null } # The chat files folder does not exist yet.
+            Mock -ModuleName ScriptMessage Invoke-MgGraphRequest {
+                # Graph returns the uploaded drive item as a hashtable, which the attachment converter reads by key.
+                @{ id = 'drive-item-id'; name = 'My File+1.pdf'; webUrl = 'https://www.domain.com/file' }
+            }
+            Mock -ModuleName ScriptMessage Invoke-MgInviteDriveItem { @{ id = 'invite-id' } }
+        }
+
+        It 'escapes the attachment filename for the upload path' {
+            $Arguments = $MessageArguments.Clone()
+            $Arguments['Attachment'] = @{ Name = 'My File+1.pdf'; Content = [byte[]]@(1, 2, 3) }
+
+            $Result = Send-ScriptMessage @Arguments
+
+            $Result.Error | Should -BeNullOrEmpty
+            # A space has to arrive as %20. In a URL path a '+' is a literal plus sign, not a space.
+            Should -Invoke -ModuleName ScriptMessage Invoke-MgGraphRequest -Times 1 -Exactly -ParameterFilter {
+                $Uri -like '*/root:/Microsoft Teams Chat Files/My%20File%2B1.pdf:/content'
+            }
+        }
+    }
+}
+
+Describe 'Send-ScriptMessage mail attachment' {
+    BeforeAll {
+        Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+            $Config = [pscustomobject]@{
+                MicrosoftGraph = [pscustomobject]@{
+                    AllowableMessageTypes = @('Mail')
+                    MailType              = 'Group'
+                    ChatType              = 'Group'
+                    IncludeBCCInGroupChat = $false
+                    MgPermissionType      = 'Application'
+                    MgDisconnectWhenDone  = $false
+                }
+            }
+            if ($null -ne $Service) { $Config.$Service } else { $Config }
+        }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $MailArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Mail'
+            From    = 'sender@example.org'
+            To      = 'recipient@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    It 'sends <Count> attachment(s) to Microsoft Graph' -ForEach @(
+        @{ Count = 1; Files = @(@{ Name = 'One.pdf'; Content = [byte[]]@(1) }) }
+        @{ Count = 2; Files = @(@{ Name = 'One.pdf'; Content = [byte[]]@(1) }, @{ Name = 'Two.pdf'; Content = [byte[]]@(2) }) }
+    ) {
+        $null = Send-ScriptMessage @MailArguments -Attachment $Files
+
+        # An empty Attachments property is $null, and @($null).Count is 1, so filter before counting.
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly -ParameterFilter {
+            @($BodyParameter.Message.Attachments | Where-Object { $null -ne $_ }).Count -eq $Count
         }
     }
 }
