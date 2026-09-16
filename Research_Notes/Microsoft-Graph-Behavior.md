@@ -1,18 +1,22 @@
 # Microsoft Graph behavior
 
 What Microsoft Graph and the Microsoft Graph PowerShell SDK do in the areas this module relies on:
-permissions, what a successful send returns, chat creation, attachment and upload limits, and how SDK sign-in
-persists. Each claim is tied to the part of the module it affects.
+permissions, what a successful send returns, chat creation, attachment and upload limits, how SDK sign-in
+persists, and what disconnecting after a send changes. Each claim is tied to the part of the module it affects.
 
-**Nothing here was measured against a tenant.** Documentation was read on **2026-09-15** from the pages listed
-under Sources. Microsoft revises these pages, so re-read a page before relying on a limit or a permission.
+**Only section 7 was measured against a tenant**, on **2026-09-16**; that section gives the environment.
+Documentation was read on **2026-09-15** from the pages listed under Sources, and the SDK source on
+**2026-09-16**. Microsoft revises these pages, so re-read a page before relying on a limit or a permission.
 
 **Claims are labelled with their evidence.**
 
+- **Measured** means observed in a test, in the environment the section describes.
 - **From documentation** means stated on a page listed under Sources, on the date above.
 - **From source** means read out of `ScriptMessage/Services/MicrosoftGraph.ps1` or
   `ScriptMessage/Public/Send-ScriptMessage.ps1`; it describes what this module does, which is not the same as
   what Graph does.
+- **From SDK source** means read out of the Microsoft Graph PowerShell SDK source at the release tag listed under
+  Sources; a later SDK release can behave differently.
 - **Inference** means reasoned from documentation or source without a test.
 - **Unverified** means nobody has tested it or found it documented. Several of these are assumptions the module
   makes today.
@@ -31,6 +35,7 @@ under Sources. Microsoft revises these pages, so re-read a page before relying o
 | [Attach large files to Outlook messages or events](https://learn.microsoft.com/en-us/graph/outlook-large-attachments) | 2025-08-06 |
 | [Upload small files](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0) | 2026-08-11 |
 | [Use Microsoft Graph PowerShell authentication commands](https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands?view=graph-powershell-1.0) | 2026-05-06 |
+| [Microsoft Graph PowerShell SDK authentication source, tag `2.25.0`](https://github.com/microsoftgraph/msgraph-sdk-powershell/tree/2.25.0/src/Authentication) | none (release tag) |
 
 ## 1. From documentation: permissions for each operation the module performs
 
@@ -139,19 +144,82 @@ email, and then referenced from the chat message.
 - The page recommends PowerShell 7 or later when connecting with client secret credentials.
 
 **From source:** the module calls `Connect-MgGraph` without `-ContextScope` or `-Environment`, and when
-`MgDisconnectWhenDone` is true (the template's default) `Send-ScriptMessage` calls `Disconnect-MgGraph` after
-sending. The chat member binding and the OneDrive upload URL are built on a hard-coded
-`https://graph.microsoft.com`. Client secret authentication is offered on both PowerShell editions.
+`MgDisconnectWhenDone` is true `Send-ScriptMessage` calls `Disconnect-MgGraph` after sending. The chat member
+binding and the OneDrive upload URL are built on a hard-coded `https://graph.microsoft.com`. Client secret
+authentication is offered on both PowerShell editions.
 
-**Inference:** with the default `CurrentUser` scope, `MgDisconnectWhenDone` clears a token cache that other
-PowerShell sessions of the same Windows user also rely on. And because the endpoint is hard-coded, chat and chat
-attachments would not work in another cloud even if `-Environment` were passed.
+**From SDK source:** the `CurrentUser` default applies only to delegated sign-in. Certificate and client secret
+connections, which the module uses for application permissions, default to `Process`, and section 7 measures
+what that means. `Disconnect-MgGraph` also does less than the page's wording suggests: it clears the in-memory
+token cache and deletes `~/.mg/mg.authrecord.json` (the file a delegated sign-in reads to find its cached
+account), but leaves the on-disk token cache in place.
+
+**Inference:** because the endpoint is hard-coded, chat and chat attachments would not work in another cloud even
+if `-Environment` were passed.
 
 ### What this does not establish
 
-- **Unverified:** whether the SDK can hold more than one connection in a process. The page describes "your
-  current session" but does not say what a second `Connect-MgGraph` does to an existing connection. The concern
-  that ScriptMessage replaces a calling script's own Graph connection needs a live test, which needs a tenant
-  and permission.
-- **Unverified:** whether `Disconnect-MgGraph` in one session signs out another running session that shares the
-  `CurrentUser` token cache.
+- **Unverified, delegated permissions only:** what `Disconnect-MgGraph`, and so `MgDisconnectWhenDone`, does to
+  other PowerShell sessions of the same Windows user. Reading the SDK source suggests a session already signed in
+  keeps working, while the next `Connect-MgGraph` in any session prompts again because `mg.authrecord.json` is
+  gone; neither was tested. Application-permission connections share nothing with other sessions (section 7).
+
+## 7. Measured: application-permission connections and `MgDisconnectWhenDone`
+
+**Environment:** measured on 2026-09-16 in PowerShell 7.6.6 and Windows PowerShell 5.1.26100.9444 on Windows 11,
+with `Microsoft.Graph.Authentication`, `Microsoft.Graph.Users.Actions`, and `Microsoft.Graph.Teams` 2.25.0 in
+both editions. The configuration used `MgPermissionType` `Application` and `MgApp_AuthenticationType`
+`CertificateThumbprint`, for an app registration whose token carried only the `Mail.Send` application role.
+**No message was sent:** the tests ran `Connect-ScriptMessage` and then, where needed, the `Disconnect-MgGraph`
+call that `Send-ScriptMessage` makes after a send, and never called `Send-ScriptMessage`. Both editions gave
+the same results.
+
+**Measured:**
+
+- After `Connect-ScriptMessage`, `Get-MgContext` reported `AuthType` `AppOnly`, `ContextScope` `Process`, and
+  `TokenCredentialType` `ClientCertificate`.
+- A separate PowerShell process started while connected reported no Graph connection.
+- Connecting wrote no token file: `~/.mg` and `%LOCALAPPDATA%\.IdentityService` were unchanged.
+- Connecting again in the same process without disconnecting reused the access token from memory (the SDK's
+  debug output reported `source: Cache`). After `Disconnect-MgGraph`, the next connect requested a new token
+  (`source: IdentityProvider`).
+- `Disconnect-MgGraph` deleted a placeholder `~/.mg/mg.authrecord.json` even though the connection was app-only.
+- **A script's own Graph connection does not survive a send.** The test script first connected with the same app
+  and certificate by subject name, so its connection could be told apart from ScriptMessage's, which uses the
+  thumbprint. After `Connect-ScriptMessage`, `Get-MgContext` showed ScriptMessage's connection. With the
+  `Disconnect-MgGraph` step (`MgDisconnectWhenDone` true), no connection remained, and the script's next
+  `Invoke-MgGraphRequest` failed with "Authentication needed. Please call Connect-MgGraph." Without that step
+  (`MgDisconnectWhenDone` false), ScriptMessage's connection remained.
+
+**From SDK source:** `ConnectMgGraph.cs` defaults `ContextScope` to `Process` for the certificate, client secret,
+managed identity, and environment variable sign-ins, and to `CurrentUser` only for delegated sign-in.
+`GraphSession.cs` keeps one static session holding one connection, so each `Connect-MgGraph` replaces the
+process's connection whatever kind it was. `AuthenticationHelpers.LogoutAsync`, which `Disconnect-MgGraph` calls,
+clears the in-memory token cache, clears the connection, and deletes `mg.authrecord.json`.
+
+**From source:** `Send-ScriptMessage` runs `Connect-ScriptMessage` before every send, and `Disconnect-MgGraph`
+after it only when the configuration's `MgDisconnectWhenDone` is true, so a configuration without the setting
+stays connected. `Connect-ScriptMessage_MicrosoftGraph` passes no `-ContextScope`, so every application
+authentication type gets `Process` scope.
+
+**Inference, for `MgDisconnectWhenDone` with application permissions:**
+
+- A script that runs in its own process and then exits keeps nothing either way. The only lasting effect of
+  true is deleting `mg.authrecord.json`, which a delegated sign-in by the same Windows user relies on.
+- Neither setting preserves a calling script's own Graph connection. With true, the script is left with no
+  connection after every send. With false, it is left with ScriptMessage's connection, which works when the
+  script used the same app and otherwise runs its later Graph commands with ScriptMessage's app and permissions.
+  `Templates/config_scriptmessage.json` sets `MgDisconnectWhenDone` to false for this reason.
+- With true, every send requests a new token. With false, sends in the same process reuse one token until it
+  expires.
+
+### What this does not establish
+
+- **Unverified:** replacement of a calling script's connection made with a different app, delegated permissions,
+  or a managed identity. Only a connection with the same app was measured; the SDK source says any connection is
+  replaced.
+- **Unverified:** the `CertificateFile`, `CertificateName`, and `ClientSecret` authentication types. The SDK
+  source gives them `Process` scope too; they were not measured.
+- **Unverified:** runspaces sharing a process, such as `ForEach-Object -Parallel` or thread jobs. The static
+  session suggests they share one connection; this was not tested.
+- Nothing in this section was measured with delegated permissions or with an SDK release other than 2.25.0.
