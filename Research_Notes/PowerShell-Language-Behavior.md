@@ -172,3 +172,66 @@ drive was created with `New-PSDrive -PSProvider FileSystem`.
 **From source:** `Get-ScriptMessageConfig` resolves its `-Path` with `GetUnresolvedProviderPathFromPSPath` and then
 opens the file with .NET, so a configuration file path containing brackets works and a wildcard in it does not.
 `1.1.0` opened the file with `Get-Content -Path`.
+
+## 9. Measured: a `PSCustomObject` in a one-item array converts to an empty string
+
+Measured on **2026-09-16** with the same editions, in a standalone script with `$OFS` unset. With
+`$Obj = [pscustomobject]@{ Name = 'A'; AddressObj = 'a@domain.com' }`, `$One = @($Obj)`, and
+`$Two = @($Obj, $Obj)`:
+
+| Expression | Result |
+| --- | --- |
+| `[string]$Obj` or `"$Obj"` | `@{Name=A; AddressObj=a@domain.com}` |
+| `$Obj.ToString()` | an empty string |
+| `[string]$One` or `"$One"` | an empty string |
+| `[string]$Two` | a single space |
+| `[string]::IsNullOrEmpty($Obj)` | `False` |
+| `[string]::IsNullOrEmpty($One)` | `True` |
+| `[string]::IsNullOrEmpty($Two)` | `False` (`IsNullOrWhiteSpace` gives `True`) |
+| `[string]::IsNullOrEmpty($One.AddressObj)` | `False` |
+| `[string]@(@{ Name = 'x' })`, a hashtable in a one-item array | `System.Collections.Hashtable`, so `IsNullOrEmpty` gives `False` |
+| `[string]@('a@domain.com')` | `a@domain.com` |
+| `[string]::IsNullOrEmpty(@())` | `True` |
+
+So `[string]::IsNullOrEmpty` cannot tell an empty array from one holding a single `PSCustomObject`, and for an
+array of those objects its answer changes between one item and two.
+
+The same holds for values arriving through a parameter:
+
+| Parameter | Argument | `[string]::IsNullOrEmpty()` | `.Count` |
+| --- | --- | --- | --- |
+| `[pscustomobject]$Recipient` | `$Obj` | `False` | `$null` on 5.1, `1` on 7 |
+| `[pscustomobject]$Recipient` | `$One` | `True` | `1` |
+| `[array]$Attachment` | a lone `PSCustomObject` | `True` | `1` |
+| `[array]$Attachment` | a lone hashtable | `False` | `1` |
+
+An `[array]` parameter wraps a lone argument in a one-item array (both arguments above arrived as `Object[]`), so
+a single `PSCustomObject` passed to one is empty by this test. `.Count` on a lone `PSCustomObject` is the only
+result in this section where the editions differ.
+
+**From source:**
+
+- `ConvertTo-ScriptMessageRecipientObject` and `ConvertTo-IMicrosoftGraphRecipient` both take a `[pscustomobject]`
+  parameter and pair `[string]::IsNullOrEmpty` with a second test: `.Count -lt 1` in the first,
+  `[string]::IsNullOrEmpty($EmailAddress.AddressObj)` in the second. `Send-ScriptMessage` keeps the converted
+  `To`, `CC`, `BCC`, and `ReplyTo` lists in `[array]` variables, so a single recipient reaches
+  `ConvertTo-IMicrosoftGraphRecipient` as a one-item array, and only the second test keeps it from being returned
+  as `$null`. For a lone object the `IsNullOrEmpty` half is already `False`, so the `.Count` difference between
+  editions does not change either function's result.
+- `ConvertTo-IMicrosoftGraphConversationMember` and `ConvertTo-IMicrosoftGraphDriveInvite` use
+  `[string]::IsNullOrEmpty` alone, on email address strings, which are unaffected.
+- `ConvertTo-ScriptMessageAttachmentObject` uses it alone on its `[array]` parameter, which receives
+  `Send-ScriptMessage -Attachment` as given. Hashtables and path strings, the supported types, are unaffected. A
+  single `PSCustomObject`, which is not supported, comes back as `$null`, the same as no attachment, while two of
+  them reach the function's "Unexpected attachment object type." error. `ConvertTo-IMicrosoftGraphAttachment` and
+  `ConvertTo-IMicrosoftGraphChatMessageAttachment` also use it alone, on items they call `.ContainsKey()` on, so
+  they expect hashtables.
+
+### What this does not establish
+
+- **Unverified:** why an array converts differently. The results fit converting each element with `ToString()`
+  and joining the results with a space, but that is inferred from the outputs, not read from PowerShell's source.
+- Only `[string]` casts, string expansion, `[string]::IsNullOrEmpty`, and `[string]::IsNullOrWhiteSpace` were
+  tested. Truthiness tests such as `if ($One)` or `-not $One`, and other .NET methods taking a string argument,
+  were not.
+- A script that sets `$OFS` was not tested.
