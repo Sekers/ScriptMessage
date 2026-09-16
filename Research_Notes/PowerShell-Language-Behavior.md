@@ -148,3 +148,27 @@ drive item path with `[uri]::EscapeDataString`.
 - **Unverified:** why a later reference to the type succeeded in a session where the first had failed. Only the
   outcome was observed, not the cause.
 - **Unverified:** what name OneDrive gives a file uploaded through a path containing `+`. Nothing was uploaded.
+
+## 8. Measured: .NET file methods and PowerShell paths
+
+Measured on **2026-09-16** with the same editions, in a standalone script whose PowerShell location
+(`Push-Location`) was a test folder while the process's working directory was the repository root. A PowerShell
+drive was created with `New-PSDrive -PSProvider FileSystem`.
+
+| Path given | `Get-Content -Path` | `[System.IO.File]::ReadAllText()` on the path as given | `ReadAllText()` on `$PSCmdlet.GetUnresolvedProviderPathFromPSPath()` |
+| --- | --- | --- | --- |
+| relative, `.\file.json` | read | failed | read |
+| on a PowerShell drive | read | not tested | read |
+| folder name containing `[x]` | failed | not tested | read |
+| wildcard matching one file, `file*.json` | read | not tested | failed |
+| `~\file.json` | not tested | not tested | resolved under `$HOME` (not read) |
+
+- .NET resolves a relative path against the process's working directory, which `Set-Location` and
+  `Push-Location` do not change, so a relative path has to be resolved by PowerShell first.
+- `Get-Content -Path` treats `[` and `]` as wildcard characters, so a folder or file name containing them does
+  not match itself. `GetUnresolvedProviderPathFromPSPath` takes the path literally: it handles relative paths,
+  drives, and `~`, never expands wildcards, and does not check that the file exists.
+
+**From source:** `Get-ScriptMessageConfig` resolves its `-Path` with `GetUnresolvedProviderPathFromPSPath` and then
+opens the file with .NET, so a configuration file path containing brackets works and a wildcard in it does not.
+`1.1.0` opened the file with `Get-Content -Path`.

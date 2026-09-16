@@ -48,7 +48,27 @@ function Get-ScriptMessageConfig
     # Get Config and Secrets
     try
     {
-        $ScriptMessageConfig = Get-Content -Path "$Path" -ErrorAction 'Stop' | ConvertFrom-Json
+        # .NET resolves a relative path against the process directory, not PowerShell's current location.
+        $FullPath = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($Path)
+
+        # A byte order mark sets the encoding when the file has one. Otherwise the file is read as UTF-8, or in the
+        # system's legacy code page when it is not valid UTF-8. See section 5 of
+        # Research_Notes/File-Encoding-And-Line-Endings.md.
+        $Reader = [System.IO.StreamReader]::new($FullPath, [System.Text.UTF8Encoding]::new($false, $true), $true)
+        try
+        {
+            $ConfigText = $Reader.ReadToEnd()
+        }
+        catch [System.Text.DecoderFallbackException]
+        {
+            $ConfigText = [System.IO.File]::ReadAllText($FullPath, [System.Text.Encoding]::GetEncoding(0))
+        }
+        finally
+        {
+            $Reader.Dispose()
+        }
+
+        $ScriptMessageConfig = $ConfigText | ConvertFrom-Json
         if (-not ($null -eq $Service))
         {
             return $ScriptMessageConfig.$Service
