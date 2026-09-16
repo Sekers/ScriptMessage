@@ -42,17 +42,10 @@ function Connect-ScriptMessage
         ServiceConfig = Get-ScriptMessageConfig -Service $Service
     }
     
-    # Connect to the proper service.
-    switch ($Service) {
-        MicrosoftGraph {
-            Import-Module -Name 'Microsoft.Graph.Users.Actions' -ErrorAction SilentlyContinue
-            if (!(Get-Module -Name 'Microsoft.Graph.Users.Actions')) {
-                # Module is not available.
-                Write-Error "Please First Install the Microsoft.Graph.Users.Actions Module from https://www.powershellgallery.com/packages/Microsoft.Graph/ "
-                Return
-            }
-            Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters
-        }
+    # Connect to the proper service. Each service checks for the modules its allowed message types need.
+    switch ($Service)
+    {
+        MicrosoftGraph {Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters}
     }
     
     # Return the connection information, if requested.
