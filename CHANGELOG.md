@@ -1,8 +1,10 @@
 # Changelog for ScriptMessage PowerShell Module
 
-All notable changes to this module are documented in this file. The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and releases after 1.1.0 follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). [RELEASING.md](./RELEASING.md) explains how versions are chosen.
-
 ## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.1.0...develop)
+
+### Changed
+
+- The sample configuration file `Templates/config_scriptmessage.json` now includes the `MgDelegatedPermission_RequestFilesReadWritePermission` setting, which requests permission to upload Teams chat attachments to OneDrive when using delegated permissions. Earlier versions already read this setting, so it can be added to an existing configuration file.
 
 ### Fixed
 
@@ -11,6 +13,8 @@ All notable changes to this module are documented in this file. The format is ba
 - On Windows PowerShell 5.1, `Send-ScriptMessage` no longer fails to send Teams chat messages that have an attachment. Such a send could deliver nothing and report "Unable to find type [System.Web.HttpUtility]" in the result's `Error` property.
 - In both PowerShell editions, `Send-ScriptMessage` now escapes spaces in chat attachment filenames correctly when uploading them. A filename containing a space was uploaded to a path holding a plus sign in place of each space.
 - Minor: `Send-ScriptMessage` now stops with that same error when the only recipients have blank addresses, such as an object or hashtable whose `Address` is empty, or a string of only spaces.
+- Minor: `Connect-ScriptMessage` and `Send-ScriptMessage` no longer require the `Microsoft.Graph.Files` module when `MgPermissionType` is `Application`. If `MgDelegatedPermission_RequestFilesReadWritePermission` was also `true` and the module was not installed, they failed with "Please first install the following sub-modules" and nothing was sent. With delegated permissions, that setting still requires the module.
+- Minor: With `MgApp_AuthenticationType` set to `CertificateFile`, the error reported when the certificate needs a password and `MgApp_EncryptedCertificatePassword` is empty now names Microsoft Graph.
 
 ---
 ## [1.1.0](https://github.com/Sekers/ScriptMessage/tree/1.1.0) - (2025-10-16)
