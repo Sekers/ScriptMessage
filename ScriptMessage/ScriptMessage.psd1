@@ -12,7 +12,7 @@
 RootModule = 'ScriptMessage.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.1.0'
+ModuleVersion = '1.1.1'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Desktop','Core')
@@ -102,10 +102,10 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('API', 'PowerShell', 'MicrosoftGraph', 'Graph', "Email", "Chat", "Messaging")
+        Tags = @('API', 'PowerShell', 'MicrosoftGraph', 'Graph', "Email", "Chat", "Messaging", 'PSEdition_Desktop', 'PSEdition_Core', 'Windows')
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/Sekers/ScriptMessage/blob/master/LICENSE'
+        LicenseUri = 'https://github.com/Sekers/ScriptMessage/blob/main/LICENSE'
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/Sekers/ScriptMessage'
@@ -114,7 +114,7 @@ PrivateData = @{
         # IconUri = ''
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'https://github.com/Sekers/ScriptMessage/blob/master/CHANGELOG.md'
+        ReleaseNotes = 'https://github.com/Sekers/ScriptMessage/blob/main/CHANGELOG.md'
 
         # Prerelease string of this module
         # Prerelease = ''

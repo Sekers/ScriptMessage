@@ -1,0 +1,50 @@
+name: Tests
+
+# Runs the Pester suite under Windows PowerShell 5.1 and PowerShell 7, and lints the workflow files. Nothing here
+# connects to a tenant or needs credentials.
+on:
+  # Branch pushes only. A release tag runs this suite through the Release workflow instead.
+  push:
+    branches: ['**']
+  pull_request:
+  # Lets the Release workflow gate publishing on this same suite instead of repeating its steps.
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Catches what a YAML parser cannot: a job that needs one that does not exist, a reusable-workflow path that
+  # resolves to nothing, an unknown runner label, a retired action version. Pinned to a version rather than
+  # :latest so a workflow that passes today does not start failing on someone else's release.
+  lint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check workflow files
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
+  pester:
+    name: Pester
+    # Windows, because Windows PowerShell 5.1 exists nowhere else. Invoke-Tests.ps1 runs both editions itself.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The module tests run PSScriptAnalyzer when it is installed. Pinned so a new analyzer rule cannot fail a
+      # build that passed before.
+      - name: Install PSScriptAnalyzer
+        run: Install-PSResource -Name PSScriptAnalyzer -Version 1.25.0 -TrustRepository
+        shell: pwsh
+
+      - name: Run tests
+        # -UsePinnedPester so both editions run the same Pester version, whatever the runner has installed.
+        run: .\Tests\Invoke-Tests.ps1 -UsePinnedPester
+        shell: pwsh

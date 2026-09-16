@@ -1,0 +1,54 @@
+# Line-ending and diff rules for this repository.
+#
+# Goal: the module must load and behave identically under Windows PowerShell 5.1 (Windows only) and
+# PowerShell 7.x+ on Windows, Linux, and macOS, no matter what each contributor's core.autocrlf is set to.
+#
+# Line endings do not affect how PowerShell parses a script (every supported host reads LF and CRLF
+# equally), so these rules exist to keep checkouts byte-identical and diffs clean rather than to make the
+# code work. Git stores text files with LF internally and applies the eol rules below on checkout.
+#
+# Every text type is pinned to LF, which is what Git already stores, so a checked-out file is byte for byte
+# the repository's copy on every platform and whatever a contributor's core.autocrlf says. That leaves no
+# conversion layer to reason about, which matters because Git hides line-ending differences: it normalizes
+# before diffing, so a file whose endings are wrong shows no diff and leaves "git status" clean.
+#
+# CRLF would keep checkouts equally consistent and Windows PowerShell 5.1 reads either, but it reintroduces
+# that conversion layer, and every tool here that is not PowerShell (grep, sed, diff, CI, the GitHub web
+# view) prefers LF.
+
+# Let Git detect text files and normalize them, unless overridden below.
+* text=auto eol=lf
+
+# PowerShell sources.
+*.ps1    text eol=lf
+*.psm1   text eol=lf
+*.psd1   text eol=lf
+*.ps1xml text eol=lf
+*.psrc   text eol=lf
+*.pssc   text eol=lf
+
+# Docs, config, and data. Pinned too, so no text file in the tree depends on core.autocrlf.
+*.md     text eol=lf
+*.txt    text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.csv    text eol=lf
+LICENSE  text eol=lf
+
+# Binaries. These must never be line-ending converted or treated as text. Git's auto-detection normally
+# catches them, but stating it removes the guesswork.
+*.dll    binary
+*.exe    binary
+*.nupkg  binary
+*.zip    binary
+*.docx   binary
+*.xlsx   binary
+*.pdf    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pfx    binary
+*.cer    binary

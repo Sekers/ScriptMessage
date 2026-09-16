@@ -2,7 +2,7 @@
 
 ## Table of Contents  <!-- omit in toc -->
 
-- [This Module is in Public Preview](#this-module-is-in-public-preview)
+- [Versioning](#versioning)
 - [Overview](#overview)
 - [Supported Services](#supported-services)
 - [What's New](#whats-new)
@@ -10,8 +10,8 @@
 - [Developing and Contributing](#developing-and-contributing)
 
 ---
-## This Module is in Public Preview
-This module can be used in production environments. However, since it is in public preview and certain functions or cmdlet responses may change, please check for any breaking changes in the [CHANGELOG.md](./CHANGELOG.md) before updating to a newer version.
+## Versioning
+This module can be used in production environments. Releases after 1.1.0 follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html): breaking changes increase the major version, new backward-compatible functionality increases the minor version, and backward-compatible fixes increase the patch version. Check [CHANGELOG.md](./CHANGELOG.md) before updating to a new major version, and see [RELEASING.md](./RELEASING.md) for the full versioning and release policy.
 
 ## Overview
 
@@ -28,6 +28,11 @@ ScriptMessage is designed to simplify the use of messaging services in PowerShel
 - [**Microsoft Graph SDK PowerShell:**](https://learn.microsoft.com/en-us/powershell/microsoftgraph/overview?view=graph-powershell-1.0) Take advantage of the Microsoft Graph SDK PowerShell module to send email and chat messages using the Graph API without having to learn all the object formatting that the API requires (which unfortunately the SDK doesn't simplify).
   - Since the Microsoft Graph API only supports Teams Chat when using delegated [permissions](https://learn.microsoft.com/en-us/graph/permissions-overview), we are looking into [Teams Bots](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/overview) support for future releases to allow for application permissions.
   - Currently, the ScriptMessage module only supports one-on-one and group chats. Teams Channel chats will be enabled in a future release.
+  - Specific Modules Used (if you want to minimize footprint):
+    - Microsoft.Graph.Authentication (Mail & Chat)
+    - Microsoft.Graph.Users.Actions (Mail Only)
+    - Microsoft.Graph.Teams (Chat Only)
+    - Microsoft.Graph.Files (Mail & Chat - Only if OneDrive Uploads are Needed)
 - [**Mailozaurr:**](https://github.com/EvotecIT/MailoZaurr) Support is planned in future releases. Mailozaurr is a PowerShell module that aims to provide SMTP, POP3, IMAP and few other ways to interact with Email. Underneath it uses MimeKit and MailKit and EmailValidation libraries.
 - [**Slack:**](https://api.slack.com/) Support is planned in future releases. Send messages into channels ([including ephemeral messages](https://api.slack.com/surfaces/messages#ephemeral)) or directly to users.
 - [**PSGSuite:**](https://github.com/SCRT-HQ/PSGSuite) Support is planned in future releases. Send Google Workspace Gmail & Chat messages. PSGSuite is a PowerShell module wrapping Google's .NET SDKs.
@@ -48,6 +53,6 @@ The ScriptMessage module documentation is hosted in the [ScriptMessage Wiki](htt
 
 ## Developing and Contributing
 
-This project is developed using a [simplified Gitflow workflow](https://www.grimadmin.com/article.php/simple-modified-gitflow-workflow) that cuts out the release branches, which are unnecessary when maintaining only a single version for production. The Master/Main branch will always be the latest stable version released and tagged with an updated version number anytime the Develop branch is merged into it. [Rebasing](https://www.atlassian.com/git/tutorials/merging-vs-rebasing) will occur if we need to streamline complex history.
+This project is developed using a [simplified Gitflow workflow](https://www.grimadmin.com/article.php/simple-modified-gitflow-workflow) that cuts out the release branches, which are unnecessary when maintaining only a single version for production. The Main branch is always the latest stable version released, and it is tagged with the new version number each time the Develop branch is merged into it. Shared branches are never rebased or force-pushed. See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to contribute, and [RELEASING.md](./RELEASING.md) for branching, versioning, and releases.
 
 You are welcome to [fork](https://guides.github.com/activities/forking/) the project and then offer your changes back using a [pull request](https://guides.github.com/activities/forking/#making-a-pull-request).

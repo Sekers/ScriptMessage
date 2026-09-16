@@ -1,5 +1,25 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16
+
+### Changed
+
+- The sample configuration file `Templates/config_scriptmessage.json` now includes the `MgDelegatedPermission_RequestFilesReadWritePermission` setting, which requests permission to upload Teams chat attachments to OneDrive when using delegated permissions. Earlier versions already read this setting, so it can be added to an existing configuration file.
+
+### Fixed
+
+- `Send-ScriptMessage` no longer rejects recipients given as a one-item array holding a recipient object, such as a single `Name` and `Address` entry read from a JSON configuration file. When those were the only recipients, it failed with "Please provide at least one parameter value for any of the following: To, CC, or BCC" and sent nothing.
+- `Send-ScriptMessage` now sends Teams chat messages that have no attachments. A call using `-Type Chat` delivered nothing and returned "Cannot index into a null array" in the result's `Error` property, unless the same call also sent mail or the chat included an attachment. Both `OneOnOne` and `Group` chats were affected.
+- On Windows PowerShell 5.1, `Send-ScriptMessage` no longer fails to send Teams chat messages that have an attachment. Such a send could deliver nothing and report "Unable to find type [System.Web.HttpUtility]" in the result's `Error` property.
+- In both PowerShell editions, `Send-ScriptMessage` now escapes spaces in chat attachment filenames correctly when uploading them. A filename containing a space was uploaded to a path holding a plus sign in place of each space.
+- Minor: `Send-ScriptMessage` now stops with that same error when the only recipients have blank addresses, such as an object or hashtable whose `Address` is empty, or a string of only spaces.
+- Minor: `Connect-ScriptMessage` and `Send-ScriptMessage` no longer require the `Microsoft.Graph.Files` module when `MgPermissionType` is `Application`. If `MgDelegatedPermission_RequestFilesReadWritePermission` was also `true` and the module was not installed, they failed with "Please first install the following sub-modules" and nothing was sent. With delegated permissions, that setting still requires the module.
+- Minor: With `MgApp_AuthenticationType` set to `CertificateFile`, the error reported when the certificate needs a password and `MgApp_EncryptedCertificatePassword` is empty now names Microsoft Graph.
+- Minor: On Windows PowerShell 5.1, a configuration file saved as UTF-8 without a byte order mark is now read correctly when it contains non-ASCII characters, such as an accented letter in `MgApp_CertificateName`. `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` silently read those characters as different ones. This is how PowerShell 7's `Set-Content` and `Out-File` save a file.
+- Minor: On PowerShell 7, a configuration file saved in the Windows ANSI code page is now read correctly when it contains non-ASCII characters. `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` silently read those characters as replacement characters. This is how Windows PowerShell 5.1's `Set-Content` saves a file.
+- Minor: A configuration file whose path contains square brackets, such as a folder named `Scripts [old]`, can now be used. `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` stopped with "Can't find the JSON configuration file" and sent nothing.
+
+---
 ## [1.1.0](https://github.com/Sekers/ScriptMessage/tree/1.1.0) - (2025-10-16)
 
 ### Fixes

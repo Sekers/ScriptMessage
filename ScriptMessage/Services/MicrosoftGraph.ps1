@@ -258,6 +258,11 @@ function Connect-ScriptMessage_MicrosoftGraph
         [pscustomobject]$ServiceConfig
     )
 
+    # Collect the connection settings from the service configuration.
+    $MgPermissionType = $ServiceConfig.MgPermissionType
+    $MgTenantID = $ServiceConfig.MgTenantID
+    $MgClientID = $ServiceConfig.MgClientID
+
     # Check For MicrosoftGraph Modules
     # Don't import the entire 'Microsoft.Graph' module. Only import the needed sub-modules.
     $RequiredModules = [System.Collections.Generic.List[Object]]::new()
@@ -284,7 +289,7 @@ function Connect-ScriptMessage_MicrosoftGraph
     }
 
     # If uploads are enabled (based on the config item 'MgDelegatedPermission_RequestFilesReadWritePermission' being set to true), check for the needed module.
-    if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+    if (($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true) -and ($MgPermissionType -eq 'Delegated'))
     {
         [string]$ModuleName = 'Microsoft.Graph.Files' # Used for Get-MgUserDrive
         Import-Module -Name $ModuleName -ErrorAction SilentlyContinue 
@@ -301,10 +306,6 @@ function Connect-ScriptMessage_MicrosoftGraph
     }
 
     # Connect to the Microsoft Graph API.      
-    $MgPermissionType = $ServiceConfig.MgPermissionType
-    $MgTenantID = $ServiceConfig.MgTenantID
-    $MgClientID = $ServiceConfig.MgClientID
-
     switch ($MgPermissionType)
     {
         Delegated {
@@ -348,7 +349,7 @@ function Connect-ScriptMessage_MicrosoftGraph
                         'Chat.ReadBasic' # Allows an app to read the members and descriptions of one-to-one and group chat threads, on behalf of the signed-in user.
                     )
                 }
-                if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true)
+                if ($ServiceConfig.MgDelegatedPermission_RequestFilesReadWritePermission -eq $true) # TODO: Do I want to allow 'Files.ReadWrite' for delegated email as well?
                 {
                     $MicrosoftGraphScopes += @(
                         'Files.ReadWrite' # Allows the app to read, create, update and delete the signed-in user's files.
@@ -384,7 +385,7 @@ function Connect-ScriptMessage_MicrosoftGraph
                         $MgApp_EncryptedCertificatePassword = $ServiceConfig.MgApp_EncryptedCertificatePassword
                         if ([string]::IsNullOrEmpty($MgApp_EncryptedCertificatePassword))
                         {
-                            $NewMessage = "Cannot access .pfx private key certificate file and no password has been provided."
+                            $NewMessage = "Cannot access Microsoft Graph .pfx private key certificate file and no password has been provided."
                             throw $NewMessage
                         }
                         else
@@ -761,6 +762,20 @@ function Send-ScriptMessage_MicrosoftGraph
                                         }
                                     }
 
+                                    # Convert Parameters to IMicrosoft*
+                                    $Message = @{}
+                                    if (-not [string]::IsNullOrEmpty($Body.Content))
+                                    {
+                                        if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+                                        {
+                                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
+                                        }
+                                        else
+                                        {
+                                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
+                                        }
+                                    }
+
                                     # Upload and add any attachments, if needed. # TODO: Check for scope permissions.
                                     # Cannot use Set-MgDriveItemContent because it forces a filepath to be provided and we want to provide content directly sometimes.
                                     if (-not [string]::IsNullOrEmpty($Attachment))
@@ -802,7 +817,7 @@ function Send-ScriptMessage_MicrosoftGraph
                                             }
 
                                             # Encode the filename to handle special characters in the filename when used in the URI.
-                                            $AttachmentFileName_Encoded = [System.Web.HttpUtility]::UrlEncode($AttachmentFileName)
+                                            $AttachmentFileName_Encoded = [uri]::EscapeDataString($AttachmentFileName)
 
                                             # Upload File
                                             $DriveItemId = "$TeamsChatFolder/$($AttachmentFileName_Encoded):"
@@ -820,19 +835,7 @@ function Send-ScriptMessage_MicrosoftGraph
                                             $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
                                         }
 
-                                        # Convert Parameters to IMicrosoft*
-                                        $Message = @{}
-                                        if (-not [string]::IsNullOrEmpty($Body.Content))
-                                        {
-                                            if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
-                                            {
-                                                [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
-                                            }
-                                            else
-                                            {
-                                                [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
-                                            }
-                                        }
+                                        # Convert the uploaded files to chat message attachments.
                                         $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
 
                                         $ChatParams = [ordered]@{

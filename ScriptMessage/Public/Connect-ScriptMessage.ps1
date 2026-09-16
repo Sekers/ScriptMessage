@@ -42,7 +42,7 @@ function Connect-ScriptMessage
         ServiceConfig = Get-ScriptMessageConfig -Service $Service
     }
     
-    # Connect to the proper service.
+    # Connect to the proper service. Each service checks for the modules its allowed message types need.
     switch ($Service)
     {
         MicrosoftGraph {Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters}

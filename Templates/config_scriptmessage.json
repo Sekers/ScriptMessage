@@ -1,10 +1,12 @@
 {
     "MicrosoftGraph": {
-        "AllowableMessageTypes": ["Mail", "Chat"],
+        "AllowableMessageTypes": ["Mail","Chat"],
+        "MailType": "Group",
         "ChatType": "Group",
         "IncludeBCCInGroupChat": false,
         "MgPermissionType": "Application",
         "MgDelegatedPermission_RequestChatReadPermission": true,
+        "MgDelegatedPermission_RequestFilesReadWritePermission": true,
         "MgDisconnectWhenDone": false,
         "MgTenantID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
         "MgClientID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",

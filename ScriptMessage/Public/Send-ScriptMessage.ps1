@@ -251,18 +251,19 @@ function Send-ScriptMessage
     # Set the necessary configuration variables.
     $ScriptMessageConfig = Get-ScriptMessageConfig
 
-    # Make sure that at least one of, To, CC, or BCC is provided.
-    if ([string]::IsNullOrEmpty($To) -and [string]::IsNullOrEmpty($CC) -and [string]::IsNullOrEmpty($BCC))
+    # Convert recipient types into properly formatted PSObject.
+    $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
+    [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo
+    [array]$To = ConvertTo-ScriptMessageRecipientObject -Recipient $To
+    [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC
+    [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
+
+    # Make sure that at least one To, CC, or BCC recipient has an address.
+    $RecipientsWithAddress = @(@($To) + @($CC) + @($BCC) | Where-Object {($null -ne $_) -and (-not [string]::IsNullOrWhiteSpace($_.AddressObj))})
+    if ($RecipientsWithAddress.Count -eq 0)
     {
         throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
     }
-
-    # Convert recipient types into properly formatted PSObject.
-    $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
-    [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo 
-    [array]$To = ConvertTo-ScriptMessageRecipientObject -Recipient $To 
-    [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC 
-    [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
 
     # Convert body into properly formatted PSObject.
     $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
