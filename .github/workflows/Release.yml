@@ -53,6 +53,9 @@ jobs:
           $HeadingPattern = '^## \[' + [regex]::Escape($Tag) + '\](\([^)]*\))? - \d{4}-\d{2}-\d{2}\s*$'
           if (-not (Select-String -Path 'CHANGELOG.md' -Pattern $HeadingPattern -Quiet)) { throw "CHANGELOG.md has no dated section for $Tag, such as '## [$Tag] - 2026-01-31'." }
 
+          # [Unreleased] exists only on develop, so a released CHANGELOG.md never carries one.
+          if (Select-String -Path 'CHANGELOG.md' -Pattern '^## \[Unreleased\]' -Quiet) { throw "CHANGELOG.md still has an [Unreleased] section. The release-prep pull request renames it to the $Tag heading and adds no new one." }
+
           # Stable releases come only from main; prereleases may also come from develop.
           $AllowedBranches = if ($Prerelease) { @('origin/main', 'origin/develop') } else { @('origin/main') }
           $OnAllowedBranch = $false
