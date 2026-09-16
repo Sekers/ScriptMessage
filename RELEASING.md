@@ -108,8 +108,9 @@ user-visible change adds its entry under `## [Unreleased]`, in one of these sect
 `[Unreleased]` exists only on `develop`, and only while it has entries. A release renames it to the version
 heading, so right after a release there is none. The next pull request that adds an entry also adds the section at
 the top, linked to a comparison from the last release:
-`## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.2.0...develop)`. The Release workflow refuses to
-publish a tag whose `CHANGELOG.md` still has an `[Unreleased]` section.
+`## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/<release>...develop)`, where `<release>` is the
+latest release tag. The Release workflow refuses to publish a tag whose `CHANGELOG.md` still has an `[Unreleased]`
+section.
 
 ## Releasing a version
 

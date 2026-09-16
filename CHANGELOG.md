@@ -1,5 +1,13 @@
 # Changelog for ScriptMessage PowerShell Module
 
+## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.1.1...develop)
+
+### Fixed
+
+- Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
+- Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
+
+---
 ## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16
 
 ### Changed
@@ -144,7 +152,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
-## [1.0.0](https://github.com/Sekers/SKYAPI/tree/1.0.0) - (2024-05-20)
+## [1.0.0](https://github.com/Sekers/ScriptMessage/tree/1.0.0) - (2024-05-20)
 
 ### Features
 

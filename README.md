@@ -47,7 +47,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for information on the latest updates, as wel
 
 ## Documentation
 
-The ScriptMessage module documentation is hosted in the [ScriptMessage Wiki](https://github.com/Sekers/ScriptMessage/wiki). Examples are included in the [Sample Usage Scripts folder](./Sample_Usage_Scripts) as well as in the comment-based help for each function/cmdlet (e.g., Get-Help Connect-ScriptMessage).
+The ScriptMessage module documentation is hosted in the [ScriptMessage Wiki](https://github.com/Sekers/ScriptMessage/wiki). Examples are included in the comment-based help for each function/cmdlet (e.g., Get-Help Connect-ScriptMessage -Examples).
 
 ---
 

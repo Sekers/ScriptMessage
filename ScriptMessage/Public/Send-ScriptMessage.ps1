@@ -117,7 +117,7 @@ function Send-ScriptMessage
     # $Content2 = Get-Content -AsByteStream -Raw -Path 'C:\Users\John\Downloads\AMovie.mp4'
 
     $Attachment = @(
-    @{
+        @{
             Name    = 'MyPDF.pdf'
             Content = $Content1
         },
@@ -125,7 +125,7 @@ function Send-ScriptMessage
             Name    = 'funnyballgame.mp4'
             Content = $Content2
         }
-    }
+    )
 
     $MessageArguments = @{
         From = @{
@@ -138,6 +138,8 @@ function Send-ScriptMessage
         }
         Attachment = $Attachment
     }
+
+    Send-ScriptMessage -Service MicrosoftGraph @MessageArguments
 #>
 
     [CmdletBinding()]
