@@ -11,7 +11,7 @@ function Set-ScriptMessageConfigFilePath
         Set the path to your ScriptMessage configuration file. The configuration holds general settings for the ScriptMessage module
         to use, as well as the connection information for the messaging service(s) you are using.
 
-        .PARAMETER Service
+        .PARAMETER Path
         Specify the path to where your configuration file is located.
 
         .EXAMPLE
