@@ -14,7 +14,7 @@
 ## Checklist
 
 - [ ] Targets `develop`, or `main` for a hotfix
-- [ ] `CHANGELOG.md` has an entry under `[Unreleased]` in the right section, or the change is not user-visible
+- [ ] `CHANGELOG.md` has an entry in the right section under `[Unreleased]` (added if missing), or the change is not user-visible
 - [ ] `.\Tests\Invoke-Tests.ps1` passes
 - [ ] Contains no real tenant names, email domains, secrets, or configuration files
 - [ ] Any live Microsoft Graph testing was done in a test tenant and is described above

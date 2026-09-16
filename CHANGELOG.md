@@ -1,9 +1,5 @@
 # Changelog for ScriptMessage PowerShell Module
 
-## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.1.1...develop)
-
----
-
 ## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16
 
 ### Changed

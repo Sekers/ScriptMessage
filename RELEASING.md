@@ -105,15 +105,22 @@ user-visible change adds its entry under `## [Unreleased]`, in one of these sect
 `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`. The rules for what an entry says are in the
 `CHANGELOG.md` section of [AGENTS.md](./AGENTS.md), and they apply to everyone, not only to AI assistants.
 
+`[Unreleased]` exists only on `develop`, and only while it has entries. A release renames it to the version
+heading, so right after a release there is none. The next pull request that adds an entry also adds the section at
+the top, linked to a comparison from the last release:
+`## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.2.0...develop)`. The Release workflow refuses to
+publish a tag whose `CHANGELOG.md` still has an `[Unreleased]` section.
+
 ## Releasing a version
 
 1. **Choose the version** from the `[Unreleased]` entries, following [Deciding hard cases](#deciding-hard-cases).
 2. **Open a release-prep pull request into `develop`** that changes only:
    - `ModuleVersion`, and `Prerelease` for a prerelease, in `ScriptMessage/ScriptMessage.psd1`.
    - `CHANGELOG.md`: rename `## [Unreleased](...)` to a dated heading such as
-     `## [1.2.0](https://github.com/Sekers/ScriptMessage/tree/1.2.0) - 2026-09-20`, and add a new, empty
-     `## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.2.0...develop)` above it.
-3. **Open a pull request from `develop` into `main`**, and merge it with a merge commit once the checks pass.
+     `## [1.2.0](https://github.com/Sekers/ScriptMessage/tree/1.2.0) - 2026-09-20`. Do not add a new
+     `[Unreleased]` section.
+3. **Open a pull request from `develop` into `main`**, and merge it with a merge commit once the checks pass. Merge
+   nothing else into `develop` until then, so no new `[Unreleased]` section reaches `main`.
 4. **Tag the merge commit with an annotated tag** (add `-s` to sign it when you have signing set up), and push
    the tag:
 
@@ -125,8 +132,8 @@ user-visible change adds its entry under `## [Unreleased]`, in one of these sect
 
 5. **The Release workflow** (`.github/workflows/Release.yml`) runs these jobs in order and stops at the first
    failure:
-   1. Confirms the tag is annotated, matches the manifest version, has a dated `CHANGELOG.md` section, and
-      points at a commit on `main` (or on `develop`, for a prerelease).
+   1. Confirms the tag is annotated, matches the manifest version, has a dated `CHANGELOG.md` section and no
+      `[Unreleased]` section, and points at a commit on `main` (or on `develop`, for a prerelease).
    2. Runs the test suite (`.github/workflows/Tests.yml`).
    3. Builds the package once and publishes it to the PowerShell Gallery, in the `psgallery` environment.
    4. Creates the GitHub release from the version's changelog section, attaches the same package, and
@@ -180,7 +187,8 @@ enforceable:
 
 - [ ] Every change listed under `[Unreleased]` has been reviewed and merged into `develop`.
 - [ ] The version increment follows [Versioning](#versioning).
-- [ ] The release-prep pull request changed only the manifest version and the changelog headings.
+- [ ] The release-prep pull request changed only the manifest version and the changelog heading, and added no
+      `[Unreleased]` section.
 - [ ] `develop` was merged into `main` with a merge commit.
 - [ ] The tag is annotated, has no `v` prefix, and is on the merge commit.
 - [ ] Every job in the Release workflow passed.

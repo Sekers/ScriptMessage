@@ -120,6 +120,10 @@ covers when `[Unreleased]` becomes a version and how that version is chosen.
 
 - **New entries go under `## [Unreleased]`** at the top of the file. Never invent a version number for them;
   the release-prep pull request turns `[Unreleased]` into a dated version heading.
+- **Add the `[Unreleased]` section only with an entry.** Right after a release there is none, so the first new
+  entry also adds `## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/<release>...develop)` at the
+  top, where `<release>` is `$Release` from the baseline commands above. Never add an empty one, and never leave
+  one in a release: the Release workflow refuses to publish while it is there.
 - Newest version first. A released version uses this heading shape, and a `---` line separates it from the next
   (older) version:
 

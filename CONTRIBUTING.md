@@ -15,7 +15,9 @@ Thank you for helping improve ScriptMessage. This guide covers the everyday work
    .\Tests\Invoke-Tests.ps1
    ```
 
-5. If users will notice the change, add an entry to `CHANGELOG.md` under `[Unreleased]`.
+5. If users will notice the change, add an entry to `CHANGELOG.md` under `[Unreleased]`. If that section is not
+   there yet, as right after a release, add it at the top ([RELEASING.md](./RELEASING.md#changelog) shows the
+   heading).
 6. Open a pull request into `develop` (or into `main` for a hotfix) and complete the pull request template,
    including the release classification.
 
