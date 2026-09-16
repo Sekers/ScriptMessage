@@ -762,6 +762,20 @@ function Send-ScriptMessage_MicrosoftGraph
                                         }
                                     }
 
+                                    # Convert Parameters to IMicrosoft*
+                                    $Message = @{}
+                                    if (-not [string]::IsNullOrEmpty($Body.Content))
+                                    {
+                                        if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
+                                        {
+                                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
+                                        }
+                                        else
+                                        {
+                                            [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
+                                        }
+                                    }
+
                                     # Upload and add any attachments, if needed. # TODO: Check for scope permissions.
                                     # Cannot use Set-MgDriveItemContent because it forces a filepath to be provided and we want to provide content directly sometimes.
                                     if (-not [string]::IsNullOrEmpty($Attachment))
@@ -821,19 +835,7 @@ function Send-ScriptMessage_MicrosoftGraph
                                             $DriveInviteResult = Invoke-MgInviteDriveItem -DriveId $MgUserDrive.Id -DriveItemId $UploadDriveItemResult.id -BodyParameter $DriveInviteParams
                                         }
 
-                                        # Convert Parameters to IMicrosoft*
-                                        $Message = @{}
-                                        if (-not [string]::IsNullOrEmpty($Body.Content))
-                                        {
-                                            if ([string]::IsNullOrEmpty($Body.ContentType)) # Don't send 'ContentType' if not provided. It will default to 'Text'
-                                            {
-                                                [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content
-                                            }
-                                            else
-                                            {
-                                                [hashtable]$Message['Body'] = ConvertTo-IMicrosoftGraphItemBody -Content $Body.Content -ContentType $Body.ContentType
-                                            }
-                                        }
+                                        # Convert the uploaded files to chat message attachments.
                                         $Message['Attachment'] = [array](ConvertTo-IMicrosoftGraphChatMessageAttachment -MgDriveItem $MgDriveItem)
 
                                         $ChatParams = [ordered]@{

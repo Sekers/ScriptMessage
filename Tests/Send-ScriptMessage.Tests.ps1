@@ -10,6 +10,9 @@ BeforeAll {
     InModuleScope ScriptMessage {
         function script:Send-MgUserMail { param($UserId, $BodyParameter, [switch]$PassThru) throw 'Send-MgUserMail stand-in called without a mock.' }
         function script:Disconnect-MgGraph { throw 'Disconnect-MgGraph stand-in called without a mock.' }
+        function script:New-MgChat { param($ChatType, $Members) throw 'New-MgChat stand-in called without a mock.' }
+        function script:New-MgChatMessage { param($ChatId, $BodyParameter) throw 'New-MgChatMessage stand-in called without a mock.' }
+        function script:Get-MgChat { param([switch]$All, $Filter, $Property, $ExpandProperty) throw 'Get-MgChat stand-in called without a mock.' }
     }
 }
 
@@ -98,6 +101,124 @@ Describe 'Send-ScriptMessage recipient check' {
         It 'throws when no To, CC, or BCC is given' {
             { Send-ScriptMessage @MessageArguments } | Should -Throw '*at least one parameter value*'
             Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+        }
+    }
+}
+
+Describe 'Send-ScriptMessage chat message' {
+    BeforeAll {
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
+            [pscustomobject]@{
+                Account = 'sender@example.org'
+                Scopes  = @('Chat.ReadWrite')
+            }
+        }
+        Mock -ModuleName ScriptMessage New-MgChat { [pscustomobject]@{ Id = 'new-chat-id' } }
+        Mock -ModuleName ScriptMessage New-MgChatMessage { [pscustomobject]@{ Id = 'new-message-id' } }
+        Mock -ModuleName ScriptMessage Get-MgChat { @() }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $MessageArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Chat'
+            From    = 'sender@example.org'
+            To      = 'recipient@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    # Each context sets ChatType in the configuration rather than passing -ChatType, because the configuration
+    # value currently wins over an explicitly passed parameter.
+    Context 'A one-on-one chat with no attachments' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Group'
+                        ChatType              = 'OneOnOne'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                # MicrosoftGraph is enum value 0, which is false, so compare with $null rather than testing $Service.
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends the message body and reports no error' {
+            $Result = Send-ScriptMessage @MessageArguments
+
+            $Result.Error | Should -BeNullOrEmpty
+            $Result.Status.Id | Should -Be 'new-message-id'
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly -ParameterFilter {
+                $BodyParameter.Body.Content -eq 'Test body'
+            }
+        }
+    }
+
+    Context 'A group chat with no attachments' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Group'
+                        ChatType              = 'Group'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends the message body and reports no error' {
+            $Result = Send-ScriptMessage @MessageArguments
+
+            $Result.Error | Should -BeNullOrEmpty
+            $Result.Status.Id | Should -Be 'new-message-id'
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly -ParameterFilter {
+                $BodyParameter.Body.Content -eq 'Test body'
+            }
+        }
+    }
+
+    Context 'Mail and Chat in the same call' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Group'
+                        ChatType              = 'OneOnOne'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends both, and the chat carries its own message content' {
+            $Arguments = $MessageArguments.Clone()
+            $Arguments['Type'] = @('Mail', 'Chat')
+
+            $Result = @(Send-ScriptMessage @Arguments)
+
+            @($Result | Where-Object { $_.MessageType -eq 'Mail' }).Count | Should -Be 1
+            @($Result | Where-Object { $_.MessageType -eq 'Chat' }).Count | Should -Be 1
+            # One result comes back per message type, so drop the empty Error properties instead of testing the
+            # array of them, which is neither null nor empty.
+            @($Result.Error | Where-Object { $null -ne $_ }) | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly -ParameterFilter {
+                $BodyParameter.Body.Content -eq 'Test body'
+            }
         }
     }
 }
