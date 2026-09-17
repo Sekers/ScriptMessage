@@ -581,6 +581,43 @@ Describe 'Send-ScriptMessage configuration defaults' {
         }
     }
 
+    Context 'The configuration file is read once per send' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        ChatType              = 'OneOnOne'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        # Send-ScriptMessage reads the file, then hands the service's section to Connect-ScriptMessage and to
+        # the service, so neither reads it again. Three reads gave a send no single consistent view of its own
+        # settings, because the file can change between them.
+        It 'reads the configuration file once for a Mail and Chat send' {
+            $Arguments = $ChatArguments.Clone()
+            $Arguments['Type'] = @('Mail', 'Chat')
+
+            $null = Send-ScriptMessage @Arguments -WarningAction SilentlyContinue
+
+            Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly
+        }
+
+        It 'still reads the file when Connect-ScriptMessage is called on its own' {
+            Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
+
+            $null = Connect-ScriptMessage -Service MicrosoftGraph
+
+            Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly
+        }
+    }
+
     Context 'A configuration that leaves ChatType blank' {
         BeforeAll {
             # Templates/config_scriptmessage.json writes a setting it leaves unset as an empty string, so a

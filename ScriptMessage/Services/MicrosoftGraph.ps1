@@ -512,15 +512,23 @@ function Send-ScriptMessage_MicrosoftGraph
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [bool]$IncludeBCCInGroupChat
+        [bool]$IncludeBCCInGroupChat,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipelineByPropertyName = $true)]
+        [pscustomobject]$ServiceConfig
     )
 
     # Set the Service ID.
-    # Keep this as a STRING and not the ENUM type since it's returned to the caller (functions will convert to [MessagingService] type as needed). 
+    # Keep this as a STRING and not the ENUM type since it's returned to the caller (functions will convert to [MessagingService] type as needed).
     [string]$ServiceId = 'MicrosoftGraph'
 
-    # Get the Service Config.
-    $ServiceConfig = Get-ScriptMessageConfig -Service $ServiceId
+    # Get the Service Config, unless the caller already read it and passed this service's section.
+    if (-not $PSBoundParameters.ContainsKey('ServiceConfig'))
+    {
+        $ServiceConfig = Get-ScriptMessageConfig -Service $ServiceId
+    }
 
     # This service's own boolean settings, checked before anything is sent so a value the module cannot read
     # stops the send instead of surfacing after the message has already gone out.

@@ -290,9 +290,17 @@ function Send-ScriptMessage
         # Look the service up first, so an unregistered one stops the call before any other work.
         $Registration = Get-ScriptMessageServiceRegistration -Service ([string]$serviceTypeObj.Service)
 
+        # Take this service's section out of the configuration read above, using the registered name rather
+        # than the parameter's value: looking a property up by a name held in an array comes back empty.
+        $ServiceConfig = $ScriptMessageConfig.$($Registration.Name)
+        if ($null -eq $ServiceConfig)
+        {
+            throw "The ScriptMessage configuration file has no `'$($Registration.Name)`' section. Add one for that messaging service, or send from a service the file configures."
+        }
+
         # Set the connection parameters.
         $ConnectionParameters = @{
-            ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
+            ServiceConfig = $ServiceConfig
         }
 
         # Set default values for anything the caller did not specify. These test the bound parameters rather than
@@ -322,7 +330,7 @@ function Send-ScriptMessage
         }
 
         # Connect to the messaging service, if necessary (e.g., API service).
-        Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
+        Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ServiceConfig $ServiceConfig -ErrorAction Stop
 
         $SendMessageParameters = [ordered]@{
             From = $From
@@ -337,6 +345,7 @@ function Send-ScriptMessage
             SenderId = $SenderId
             Type = $serviceTypeObj.Type
             IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
+            ServiceConfig = $ServiceConfig
         }
 
         # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a setting
