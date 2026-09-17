@@ -515,6 +515,11 @@ function Send-ScriptMessage_MicrosoftGraph
     # Get the Service Config.
     $ServiceConfig = Get-ScriptMessageConfig -Service $ServiceId
 
+    # This service's own boolean settings, checked before anything is sent so a value the module cannot read
+    # stops the send instead of surfacing after the message has already gone out.
+    $MgDisconnectWhenDone = Get-ScriptMessageBooleanSetting -Name 'MgDisconnectWhenDone' `
+        -Value $ServiceConfig.MgDisconnectWhenDone
+
     # Send the message on each supported service specified.
     foreach ($typeItem in $Type)
     {
@@ -1044,5 +1049,11 @@ function Send-ScriptMessage_MicrosoftGraph
                 Write-Warning -Message "'$($typeItem)' is an invalid message type for service '$($ServiceId)'."
             }
         }
+    }
+
+    # Disconnect from the Microsoft Graph API, if enabled in the configuration file.
+    if ($MgDisconnectWhenDone)
+    {
+        $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
     }
 }

@@ -246,8 +246,7 @@ function Send-ScriptMessage
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [ValidateSet($null, $true, $false)]
-        [Object]$IncludeBCCInGroupChat # Is an object so it can be set to $null
+        [Nullable[bool]]$IncludeBCCInGroupChat # Nullable so it can be set to $null, meaning "use the configured value"
     )
 
     # Set the necessary configuration variables.
@@ -307,14 +306,16 @@ function Send-ScriptMessage
             $ResolvedChatType = $ConnectionParameters.ServiceConfig.ChatType
         }
 
-        # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value".
-        if ($PSBoundParameters.ContainsKey('IncludeBCCInGroupChat') -and ($null -ne $IncludeBCCInGroupChat))
+        # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value", which is also what an
+        # unsupplied [Nullable[bool]] holds.
+        if ($null -ne $IncludeBCCInGroupChat)
         {
             [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat
         }
         else
         {
-            [bool]$ResolvedIncludeBCCInGroupChat = $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
+            [bool]$ResolvedIncludeBCCInGroupChat = Get-ScriptMessageBooleanSetting -Name 'IncludeBCCInGroupChat' `
+                -Value $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
         }
 
         # Connect to the messaging service, if necessary (e.g., API service).
@@ -347,12 +348,6 @@ function Send-ScriptMessage
                 }
 
                 Send-ScriptMessage_MicrosoftGraph @SendMessageParameters
-
-                # Disconnect from Microsoft Graph API, if enabled in config.
-                if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)
-                {
-                    $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
-                }
             }
             Default {throw "Invalid `'Service`' value."}
         }

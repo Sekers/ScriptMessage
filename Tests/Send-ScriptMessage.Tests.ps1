@@ -483,6 +483,104 @@ Describe 'Send-ScriptMessage configuration defaults' {
         }
     }
 
+    Context 'Boolean settings and parameters reject strings' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Disconnect-MgGraph { }
+
+            $MailArguments = @{
+                Service = 'MicrosoftGraph'
+                Type    = 'Mail'
+                From    = 'sender@example.org'
+                To      = 'recipient@example.org'
+                Subject = 'Test subject'
+                Body    = 'Test body'
+            }
+        }
+
+        # Parameter binding fails before the configuration file is read, so this needs no configuration mock.
+        # 'false' is a non-empty string, and every non-empty string casts to $true, so accepting it would mean
+        # the opposite of what the caller asked for.
+        It 'rejects a string passed to -IncludeBCCInGroupChat' {
+            { Send-ScriptMessage @MailArguments -IncludeBCCInGroupChat 'false' } |
+                Should -Throw '*Boolean parameters accept only*'
+        }
+
+        Context 'A configuration whose booleans are real booleans' {
+            BeforeAll {
+                Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                    $Config = [pscustomobject]@{
+                        MicrosoftGraph = [pscustomobject]@{
+                            AllowableMessageTypes = @('Mail')
+                            IncludeBCCInGroupChat = $true
+                            MgPermissionType      = 'Application'
+                            MgDisconnectWhenDone  = $true
+                        }
+                    }
+                    if ($null -ne $Service) { $Config.$Service } else { $Config }
+                }
+            }
+
+            It 'accepts a real $false for -IncludeBCCInGroupChat' {
+                { Send-ScriptMessage @MailArguments -IncludeBCCInGroupChat $false -ErrorAction Stop } |
+                    Should -Not -Throw
+                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+            }
+
+            It 'disconnects when MgDisconnectWhenDone is a real $true' {
+                $null = Send-ScriptMessage @MailArguments
+
+                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+                Should -Invoke -ModuleName ScriptMessage Disconnect-MgGraph -Times 1 -Exactly
+            }
+        }
+
+        Context 'A configuration file that quotes IncludeBCCInGroupChat' {
+            BeforeAll {
+                Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                    $Config = [pscustomobject]@{
+                        MicrosoftGraph = [pscustomobject]@{
+                            AllowableMessageTypes = @('Mail')
+                            IncludeBCCInGroupChat = 'false'
+                            MgPermissionType      = 'Application'
+                            MgDisconnectWhenDone  = $false
+                        }
+                    }
+                    if ($null -ne $Service) { $Config.$Service } else { $Config }
+                }
+            }
+
+            It 'stops without sending' {
+                { Send-ScriptMessage @MailArguments } |
+                    Should -Throw "*'IncludeBCCInGroupChat' setting*must be a boolean*"
+                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+            }
+        }
+
+        Context 'A configuration file that quotes MgDisconnectWhenDone' {
+            BeforeAll {
+                Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                    $Config = [pscustomobject]@{
+                        MicrosoftGraph = [pscustomobject]@{
+                            AllowableMessageTypes = @('Mail')
+                            IncludeBCCInGroupChat = $false
+                            MgPermissionType      = 'Application'
+                            MgDisconnectWhenDone  = 'false'
+                        }
+                    }
+                    if ($null -ne $Service) { $Config.$Service } else { $Config }
+                }
+            }
+
+            # The Microsoft Graph service consumes this setting after its message type loop, so it checks the
+            # value before that loop to keep an unreadable one from surfacing after the message has gone out.
+            It 'stops without sending' {
+                { Send-ScriptMessage @MailArguments } |
+                    Should -Throw "*'MgDisconnectWhenDone' setting*must be a boolean*"
+                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+            }
+        }
+    }
+
     Context 'A configuration that leaves ChatType blank' {
         BeforeAll {
             # Templates/config_scriptmessage.json writes a setting it leaves unset as an empty string, so a

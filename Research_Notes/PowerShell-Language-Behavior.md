@@ -39,10 +39,11 @@ passed". `$PSBoundParameters.ContainsKey()` is the test that tells them apart. A
 three states (unset, true, false) should be `[Nullable[bool]]`.
 
 **From source:** `Send-ScriptMessage` fills in `ChatType` and `IncludeBCCInGroupChat` from the configuration
-file when the caller did not supply them, and tests `$PSBoundParameters.ContainsKey()` for exactly this reason.
-The `-not` test would drop an explicit `-ChatType OneOnOne` or `-IncludeBCCInGroupChat $false` in favor of the
-configuration file's value. Section 10 covers why the resolved values go into separate variables rather than
-back into the parameters.
+file when the caller did not supply them. The `-not` test would drop an explicit `-ChatType OneOnOne` or
+`-IncludeBCCInGroupChat $false` in favor of the configuration file's value, so `ChatType` tests
+`$PSBoundParameters.ContainsKey()` and `IncludeBCCInGroupChat`, declared `[Nullable[bool]]` as the last line
+above recommends, tests `$null -ne`. Section 10 covers why the resolved values go into separate variables
+rather than back into the parameters, and why that declaration is what rejects a string.
 
 ## 2. Measured: a `[PSCustomObject]` constraint on a variable does not convert a hashtable
 
@@ -257,6 +258,11 @@ With `enum CT { OneOnOne; Group }`:
 | Splatting `@{ ChatType = '' }` at a `[CT]` parameter | throws `The identifier name  cannot be processed because it is either too similar or identical to the following enumerator names` |
 | `[string]::IsNullOrWhiteSpace()` given a `[CT]` value | `False`; the enum converts to its member name first |
 | `[bool]` of the string `'false'` | `True`; every non-empty string is truthy |
+| `-b 'false'` at a `[bool]` or `[Nullable[bool]]` parameter | throws: "Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0" |
+| `-b 'false'` at an `[Object]` parameter carrying `[ValidateSet($null, $true, $false)]` | passes validation, and `$b` is still the string `'false'` |
+| `-b 0` at that same `[ValidateSet]` parameter | throws; the set holds `''`, `True` and `False` as strings |
+| `-b 1` at a `[bool]` or `[Nullable[bool]]` parameter | `True` |
+| An unsupplied `[Nullable[bool]]` parameter, and `-b $null` | both `$null` |
 
 Two consequences. A parameter's type constraint is not just an entry gate: it applies to every later assignment
 to that variable in the body, so a parameter cannot be reused as a scratch variable for a value its type
@@ -276,9 +282,17 @@ an empty string. `Send-ScriptMessage_MicrosoftGraph` then reports a Chat message
 `IncludeBCCInGroupChat` needs no such guard: it is resolved through a `[bool]`-constrained variable inside a
 function, so a configuration file with no `IncludeBCCInGroupChat` setting yields `False`.
 
-The last row is a trap this module has not addressed: a configuration file that quotes the value, as
-`"IncludeBCCInGroupChat": "false"`, yields `True`, because `[bool]` of any non-empty string is `True`. JSON
-`false` is unquoted and converts correctly, so only a hand-edited file with the quotes is affected.
+The parameter binder is stricter than a cast or a validation set, and that difference is load-bearing. A
+`[bool]` or `[Nullable[bool]]` parameter refuses a string, while `[Object]` with `[ValidateSet($null, $true,
+$false)]` accepts `'false'` and leaves it a string for a later `[bool]` cast to turn into `True`. A
+configuration file value never passes through a binder at all, so it needs its own check.
+
+**From source:** `Send-ScriptMessage` declares `-IncludeBCCInGroupChat` as `[Nullable[bool]]`, which keeps the
+three states it needs (unset, true, false) and makes the binder reject a string. A configuration file value
+reaches no binder, so `Get-ScriptMessageBooleanSetting` rejects any value that is `-isnot [bool]`. Each layer
+calls it for the settings it owns and before anything is sent: `Send-ScriptMessage` for the generic
+`IncludeBCCInGroupChat`, and `Send-ScriptMessage_MicrosoftGraph` for its own `MgDisconnectWhenDone`, ahead of
+that function's message type loop. Unquoted JSON `true` and `false` arrive as real booleans and are unaffected.
 
 ### What this does not establish
 
