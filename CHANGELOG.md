@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- `Send-ScriptMessage` now honors an explicit `-ChatType OneOnOne`. The configuration file's `ChatType` setting was used in its place, so a call asking for one-on-one chats sent a single group chat when that setting was `Group`. An explicit `-ChatType Group` was unaffected.
+- `Send-ScriptMessage` now honors an explicit `-IncludeBCCInGroupChat $false`. The configuration file's `IncludeBCCInGroupChat` setting was used in its place, so a call asking to keep BCC recipients out of a group chat added them anyway when that setting was `true`, making those addresses visible to everyone in the chat. An explicit `-IncludeBCCInGroupChat $true` was unaffected.
+- `Send-ScriptMessage` now sends mail without a `ChatType` setting in the configuration file. A Mail-only send failed without it, reporting "Cannot convert null to type ChatType", even though `ChatType` only affects chat; a configuration file listing only `Mail` in `AllowableMessageTypes`, or one written before the setting was added in version 1.0.8, was affected. A `Chat` send with no chat type, because the setting is missing or blank and `-ChatType` was not passed, now reports that in the returned result's `Error` property and names both places it can be set.
 - Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
 

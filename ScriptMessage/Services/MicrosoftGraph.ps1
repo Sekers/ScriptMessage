@@ -693,6 +693,12 @@ function Send-ScriptMessage_MicrosoftGraph
                             Write-Warning -Message $NewMessage
                             $MgWarningMessages += "$NewMessage"
                         }
+                        elseif ($null -eq $ChatType)
+                        {
+                            $NewMessage = "Chat not sent. No chat type is set. Add the 'ChatType' setting to the '$ServiceId' section of the configuration file, or use the 'ChatType' parameter."
+                            Write-Warning -Message $NewMessage
+                            $MgWarningMessages += "$NewMessage"
+                        }
                         else
                         {
                             # Grab the latest MicrosoftGraph service context.

@@ -133,8 +133,6 @@ Describe 'Send-ScriptMessage chat message' {
         }
     }
 
-    # Each context sets ChatType in the configuration rather than passing -ChatType, because the configuration
-    # value currently wins over an explicitly passed parameter.
     Context 'A one-on-one chat with no attachments' {
         BeforeAll {
             Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
@@ -142,7 +140,6 @@ Describe 'Send-ScriptMessage chat message' {
                     MicrosoftGraph = [pscustomobject]@{
                         AllowableMessageTypes = @('Mail', 'Chat')
                         MailType              = 'Group'
-                        ChatType              = 'OneOnOne'
                         IncludeBCCInGroupChat = $false
                         MgPermissionType      = 'Delegated'
                         MgDisconnectWhenDone  = $false
@@ -154,7 +151,7 @@ Describe 'Send-ScriptMessage chat message' {
         }
 
         It 'sends the message body and reports no error' {
-            $Result = Send-ScriptMessage @MessageArguments
+            $Result = Send-ScriptMessage @MessageArguments -ChatType OneOnOne
 
             $Result.Error | Should -BeNullOrEmpty
             $Result.Status.Id | Should -Be 'new-message-id'
@@ -171,7 +168,6 @@ Describe 'Send-ScriptMessage chat message' {
                     MicrosoftGraph = [pscustomobject]@{
                         AllowableMessageTypes = @('Mail', 'Chat')
                         MailType              = 'Group'
-                        ChatType              = 'Group'
                         IncludeBCCInGroupChat = $false
                         MgPermissionType      = 'Delegated'
                         MgDisconnectWhenDone  = $false
@@ -182,7 +178,7 @@ Describe 'Send-ScriptMessage chat message' {
         }
 
         It 'sends the message body and reports no error' {
-            $Result = Send-ScriptMessage @MessageArguments
+            $Result = Send-ScriptMessage @MessageArguments -ChatType Group
 
             $Result.Error | Should -BeNullOrEmpty
             $Result.Status.Id | Should -Be 'new-message-id'
@@ -199,7 +195,6 @@ Describe 'Send-ScriptMessage chat message' {
                     MicrosoftGraph = [pscustomobject]@{
                         AllowableMessageTypes = @('Mail', 'Chat')
                         MailType              = 'Group'
-                        ChatType              = 'OneOnOne'
                         IncludeBCCInGroupChat = $false
                         MgPermissionType      = 'Delegated'
                         MgDisconnectWhenDone  = $false
@@ -212,6 +207,7 @@ Describe 'Send-ScriptMessage chat message' {
         It 'sends both, and the chat carries its own message content' {
             $Arguments = $MessageArguments.Clone()
             $Arguments['Type'] = @('Mail', 'Chat')
+            $Arguments['ChatType'] = 'OneOnOne'
 
             $Result = @(Send-ScriptMessage @Arguments)
 
@@ -233,7 +229,6 @@ Describe 'Send-ScriptMessage chat message' {
                     MicrosoftGraph = [pscustomobject]@{
                         AllowableMessageTypes = @('Mail', 'Chat')
                         MailType              = 'Group'
-                        ChatType              = 'OneOnOne'
                         IncludeBCCInGroupChat = $false
                         MgPermissionType      = 'Delegated'
                         MgDisconnectWhenDone  = $false
@@ -253,6 +248,7 @@ Describe 'Send-ScriptMessage chat message' {
         It 'escapes the attachment filename for the upload path' {
             $Arguments = $MessageArguments.Clone()
             $Arguments['Attachment'] = @{ Name = 'My File+1.pdf'; Content = [byte[]]@(1, 2, 3) }
+            $Arguments['ChatType'] = 'OneOnOne'
 
             $Result = Send-ScriptMessage @Arguments
 
@@ -302,6 +298,215 @@ Describe 'Send-ScriptMessage mail attachment' {
         # An empty Attachments property is $null, and @($null).Count is 1, so filter before counting.
         Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly -ParameterFilter {
             @($BodyParameter.Message.Attachments | Where-Object { $null -ne $_ }).Count -eq $Count
+        }
+    }
+}
+
+Describe 'Send-ScriptMessage configuration defaults' {
+    BeforeAll {
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
+            [pscustomobject]@{
+                Account = 'sender@example.org'
+                Scopes  = @('Chat.ReadWrite')
+            }
+        }
+        Mock -ModuleName ScriptMessage New-MgChat { [pscustomobject]@{ Id = 'new-chat-id' } }
+        Mock -ModuleName ScriptMessage New-MgChatMessage { [pscustomobject]@{ Id = 'new-message-id' } }
+        Mock -ModuleName ScriptMessage Get-MgChat { @() }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $ChatArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Chat'
+            From    = 'sender@example.org'
+            To      = 'recipient@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    Context 'A configuration that sets ChatType to Group' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Group'
+                        ChatType              = 'Group'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        # 'OneOnOne' is the first ChatType enum member, so its numeric value is 0. A truthiness test on the
+        # parameter cannot tell it apart from an unsupplied value.
+        It 'an explicit -ChatType OneOnOne wins over the configuration' {
+            $null = Send-ScriptMessage @ChatArguments -ChatType OneOnOne
+
+            Should -Invoke -ModuleName ScriptMessage New-MgChat -Times 1 -Exactly -ParameterFilter {
+                $ChatType -eq 'OneOnOne'
+            }
+            # Only the Group branch looks for a chat to reuse.
+            Should -Invoke -ModuleName ScriptMessage Get-MgChat -Times 0 -Exactly
+        }
+
+        It 'the configuration value is used when -ChatType is not supplied' {
+            $null = Send-ScriptMessage @ChatArguments
+
+            Should -Invoke -ModuleName ScriptMessage New-MgChat -Times 1 -Exactly -ParameterFilter {
+                $ChatType -eq 'Group'
+            }
+            Should -Invoke -ModuleName ScriptMessage Get-MgChat -Times 1 -Exactly
+        }
+    }
+
+    Context 'A configuration that sets IncludeBCCInGroupChat to true' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Group'
+                        ChatType              = 'Group'
+                        IncludeBCCInGroupChat = $true
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'an explicit -IncludeBCCInGroupChat $false wins over the configuration' {
+            $Result = Send-ScriptMessage @ChatArguments -BCC 'blind@example.org' -IncludeBCCInGroupChat $false -WarningAction SilentlyContinue
+
+            @($Result.Error | Where-Object { $_.Type -eq 'Warning' -and $_.Message -like '*not included in the group chat*' }).Count |
+                Should -Be 1
+        }
+
+        It 'the configuration value is used when -IncludeBCCInGroupChat is not supplied' {
+            $Result = Send-ScriptMessage @ChatArguments -BCC 'blind@example.org'
+
+            $Result.Error | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'A configuration written before the ChatType setting existed' {
+        BeforeAll {
+            # A configuration file from 1.0.7 or earlier has no ChatType setting at all.
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail')
+                        MgPermissionType      = 'Application'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends Mail without needing a ChatType setting' {
+            $MailArguments = @{
+                Service = 'MicrosoftGraph'
+                Type    = 'Mail'
+                From    = 'sender@example.org'
+                To      = 'recipient@example.org'
+                Subject = 'Test subject'
+                Body    = 'Test body'
+            }
+
+            # A missing 'ChatType' must not stop a Mail send, so reaching the assertions at all is half of
+            # what this checks.
+            $Result = Send-ScriptMessage @MailArguments -ErrorAction Stop
+
+            # A Mail send has no chat type and must not be told about one.
+            $Result.Error | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+        }
+
+        # The configuration allows Mail only, so that is what the caller has to change. A missing 'ChatType' is
+        # not the reason this send cannot happen, and saying so would send them to the wrong setting.
+        It 'reports the disallowed message type rather than the missing ChatType' {
+            $ChatOnly = @{
+                Service = 'MicrosoftGraph'
+                Type    = 'Chat'
+                From    = 'sender@example.org'
+                To      = 'recipient@example.org'
+                Subject = 'Test subject'
+                Body    = 'Test body'
+            }
+
+            $Result = Send-ScriptMessage @ChatOnly -WarningAction SilentlyContinue
+
+            @($Result.Error | Where-Object { $_.Message -like '*does not allow sending messages of type*' }).Count |
+                Should -Be 1
+            $Result.Error | Where-Object { $_.Message -like '*No chat type is set*' } | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'A configuration that allows Chat but sets no ChatType' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'reports the missing chat type in the result instead of throwing' {
+            $Result = Send-ScriptMessage @ChatArguments -WarningAction SilentlyContinue
+
+            @($Result.Error | Where-Object { $_.Message -like '*No chat type is set*' }).Count | Should -Be 1
+            Should -Invoke -ModuleName ScriptMessage New-MgChat -Times 0 -Exactly
+        }
+
+        It 'still sends Mail in the same call' {
+            $Arguments = $ChatArguments.Clone()
+            $Arguments['Type'] = @('Mail', 'Chat')
+
+            $Result = @(Send-ScriptMessage @Arguments -WarningAction SilentlyContinue)
+
+            @($Result | Where-Object { $_.MessageType -eq 'Mail' -and $null -eq $_.Error }).Count | Should -Be 1
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+        }
+    }
+
+    Context 'A configuration that leaves ChatType blank' {
+        BeforeAll {
+            # Templates/config_scriptmessage.json writes a setting it leaves unset as an empty string, so a
+            # blank 'ChatType' has to read the same as a missing one.
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        ChatType              = ''
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'reports the missing chat type rather than failing to convert an empty string' {
+            $Result = Send-ScriptMessage @ChatArguments -WarningAction SilentlyContinue
+
+            @($Result.Error | Where-Object { $_.Message -like '*No chat type is set*' }).Count | Should -Be 1
+            $Result.Error | Where-Object { $_.Message -like '*identifier name*' } | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage New-MgChat -Times 0 -Exactly
         }
     }
 }

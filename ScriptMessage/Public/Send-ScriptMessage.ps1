@@ -293,14 +293,28 @@ function Send-ScriptMessage
             ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
         }
 
-        # Set default values if not specified by a parameter.
-        if (-not $ChatType)
+        # Set default values for anything the caller did not specify. These test the bound parameters rather than
+        # the values because truthiness cannot tell either parameter apart from an unsupplied one: 'OneOnOne' is
+        # ChatType enum value 0, and $false is a valid 'IncludeBCCInGroupChat' choice. The results go into
+        # separate variables because a parameter keeps its type constraint through later assignments, and
+        # [ChatType] cannot hold the $null of a configuration file that has no 'ChatType' setting.
+        if ($PSBoundParameters.ContainsKey('ChatType'))
         {
-            [ChatType]$ChatType = $ConnectionParameters.ServiceConfig.ChatType
+            $ResolvedChatType = $ChatType
         }
-        if (-not $IncludeBCCInGroupChat)
+        else
         {
-            [bool]$IncludeBCCInGroupChat = $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
+            $ResolvedChatType = $ConnectionParameters.ServiceConfig.ChatType
+        }
+
+        # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value".
+        if ($PSBoundParameters.ContainsKey('IncludeBCCInGroupChat') -and ($null -ne $IncludeBCCInGroupChat))
+        {
+            [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat
+        }
+        else
+        {
+            [bool]$ResolvedIncludeBCCInGroupChat = $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
         }
 
         # Connect to the messaging service, if necessary (e.g., API service).
@@ -321,8 +335,15 @@ function Send-ScriptMessage
                     Attachment = $Attachment
                     SenderId = $SenderId
                     Type = $serviceTypeObj.Type
-                    ChatType = $ChatType
-                    IncludeBCCInGroupChat = $IncludeBCCInGroupChat
+                    IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
+                }
+
+                # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a
+                # setting it leaves unset, so pass it only when there is a real value. A Mail-only send does not
+                # need one, and the service reports a Chat message that has none.
+                if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
+                {
+                    $SendMessageParameters['ChatType'] = $ResolvedChatType
                 }
 
                 Send-ScriptMessage_MicrosoftGraph @SendMessageParameters
