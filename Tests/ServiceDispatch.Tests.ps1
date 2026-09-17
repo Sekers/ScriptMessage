@@ -31,10 +31,68 @@ Describe 'The service table' {
 
     It 'refuses to register a service that is not a MessagingService member' {
         InModuleScope ScriptMessage {
-            { Register-ScriptMessageService -Name 'Carrier Pigeon' `
+            { Register-ScriptMessageService -Name 'Carrier Pigeon' -SupportedSetting @() `
                 -ConnectFunction 'c' -DisconnectFunction 'd' -SendFunction 's' -GetContextFunction 'g' } |
                 Should -Throw '*not a member of the MessagingService enum*'
         }
+    }
+
+    It 'records which generic settings Microsoft Graph honors, and which it does not' {
+        InModuleScope ScriptMessage {
+            $Supported = (Get-ScriptMessageServiceRegistration -Service 'MicrosoftGraph').SupportedSetting
+
+            $Supported | Should -Contain 'ChatType'
+            $Supported | Should -Contain 'IncludeBCCInGroupChat'
+            $Supported | Should -Not -Contain 'MailType'
+        }
+    }
+}
+
+Describe 'A generic setting the service does not support' {
+    BeforeAll {
+        # Pester can only mock a command that exists, so the stand-in has to come before the mock.
+        InModuleScope ScriptMessage {
+            function script:Send-MgUserMail { param($UserId, $BodyParameter, [switch]$PassThru) throw 'Send-MgUserMail stand-in called without a mock.' }
+        }
+
+        Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+            $Config = [pscustomobject]@{
+                MicrosoftGraph = [pscustomobject]@{
+                    AllowableMessageTypes = @('Mail')
+                    ChatType              = 'Group'
+                    IncludeBCCInGroupChat = $false
+                    MgPermissionType      = 'Application'
+                    MgDisconnectWhenDone  = $false
+                }
+            }
+            if ($null -ne $Service) { $Config.$Service } else { $Config }
+        }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $MailArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Mail'
+            From    = 'sender@example.org'
+            To      = 'recipient@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    It 'reports -MailType as unsupported and still sends' {
+        $Warnings = @()
+        $null = Send-ScriptMessage @MailArguments -MailType Group -WarningVariable Warnings -WarningAction SilentlyContinue
+
+        ($Warnings | Out-String) | Should -BeLike "*does not support the 'MailType' parameter*"
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+    }
+
+    It 'says nothing about a setting the service does support' {
+        $Warnings = @()
+        $null = Send-ScriptMessage @MailArguments -ChatType Group -WarningVariable Warnings -WarningAction SilentlyContinue
+
+        ($Warnings | Out-String) | Should -Not -BeLike '*does not support*'
     }
 }
 

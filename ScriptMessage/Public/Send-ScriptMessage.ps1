@@ -49,8 +49,9 @@ function Send-ScriptMessage
     .PARAMETER SenderId
     Specify the account used to send the message request. This might be different than the 'From' parameter in the case of "Send As', "Send on Behalf", delegated mailboxes, etc.
     If not specified, defaults to the address inside of the 'From' parameter.
-    .PARAMETER MailType # TODO: Implement OneOnOne emailing.
+    .PARAMETER MailType
     Override the default 'MailType' specified in the configuration file for the messaging service being used. Options are 'OneOnOne' or 'Group'.
+    No messaging service supports this parameter yet, so a value given here is reported as unsupported and ignored.
     .PARAMETER ChatType
     Override the default 'ChatType' specified in the configuration file for the messaging service being used. Options are 'OneOnOne' or 'Group'.
     .PARAMETER IncludeBCCInGroupChat
@@ -296,6 +297,27 @@ function Send-ScriptMessage
         if ($null -eq $ServiceConfig)
         {
             throw "The ScriptMessage configuration file has no `'$($Registration.Name)`' section. Add one for that messaging service, or send from a service the file configures."
+        }
+
+        # Tell the caller about any generic setting this service does not honor. Services are meant to be
+        # interchangeable, so one that cannot act on a setting is an ordinary case rather than an error: the
+        # rest of the send goes ahead, which matters most when a single call goes to several services and only
+        # some of them honor it.
+        foreach ($settingName in @('MailType', 'ChatType', 'IncludeBCCInGroupChat'))
+        {
+            if (-not $PSBoundParameters.ContainsKey($settingName))
+            {
+                continue
+            }
+            # A $null means "use the configured value", so the caller has expressed no preference to drop.
+            if ($null -eq $PSBoundParameters[$settingName])
+            {
+                continue
+            }
+            if ($Registration.SupportedSetting -notcontains $settingName)
+            {
+                Write-Warning -Message "The `'$($Registration.Name)`' messaging service does not support the `'$settingName`' parameter, so it was ignored."
+            }
         }
 
         # Set the connection parameters.

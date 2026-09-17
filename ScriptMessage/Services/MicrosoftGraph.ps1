@@ -1074,7 +1074,9 @@ function Send-ScriptMessage_MicrosoftGraph
 }
 
 # Announce this service to the module. Keep this at the bottom of the file, after the functions it names.
+# 'MailType' is absent from SupportedSetting on purpose: nothing here acts on it.
 Register-ScriptMessageService -Name 'MicrosoftGraph' `
+    -SupportedSetting   'ChatType', 'IncludeBCCInGroupChat' `
     -ConnectFunction    'Connect-ScriptMessage_MicrosoftGraph' `
     -DisconnectFunction 'Disconnect-ScriptMessage_MicrosoftGraph' `
     -SendFunction       'Send-ScriptMessage_MicrosoftGraph' `
