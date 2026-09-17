@@ -19,8 +19,11 @@ repository (`Sekers/ScriptMessage.wiki`), not part of this one.
   `Tests/` use whichever configuration their `Set-ScriptMessageConfigFilePath` line names; read that line, and
   the recipients, before running anything.
 - **Never name the production tenant in any file.** No organization name, abbreviation, or email domain in
-  code, comments, help examples, tests, or commit messages. Use placeholder addresses on `domain.com`, as the
-  existing help examples do.
+  code, comments, help examples, tests, or commit messages. Every placeholder address and URL uses a domain
+  reserved by [RFC 2606](https://www.rfc-editor.org/rfc/rfc2606): `example.com`, `example.net`, or
+  `example.org`. None of them can ever be registered, so a placeholder copied out of a help example and run
+  unedited, or a test whose mock is missing, cannot reach a real recipient. Prefer `example.com` for anything
+  new, but all three are equally correct: never rename existing placeholders to match that preference.
 - **Never commit a real configuration file.** Configuration files hold the tenant ID, client ID, certificate
   details, and encrypted secrets. `Tests/Config/` and `@Local Only/` are gitignored for that reason, and
   `Templates/config_scriptmessage.json` must only ever contain placeholder values.

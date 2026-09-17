@@ -24,7 +24,8 @@ Thank you for helping improve ScriptMessage. This guide covers the everyday work
 ## Rules
 
 - **Never commit a real configuration file, secret, or certificate.** Never name a real organization, tenant, or
-  email domain in code, tests, examples, or commit messages; use `domain.com` addresses instead.
+  email domain in code, tests, examples, or commit messages; use an RFC 2606 reserved domain instead, such as
+  `example.com`. Those can never be registered, so a placeholder that gets run unedited reaches nobody.
 - **The automated tests never connect to a tenant.** If a change needs a live Microsoft Graph test, run it in
   your own test tenant and describe what you tested in the pull request.
 - **Text files are UTF-8 with LF line endings and no byte order mark, and PowerShell files contain only ASCII.**

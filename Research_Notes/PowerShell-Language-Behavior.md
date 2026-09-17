@@ -178,12 +178,12 @@ opens the file with .NET, so a configuration file path containing brackets works
 ## 9. Measured: a `PSCustomObject` in a one-item array converts to an empty string
 
 Measured on **2026-09-16** with the same editions, in a standalone script with `$OFS` unset. With
-`$Obj = [pscustomobject]@{ Name = 'A'; AddressObj = 'a@domain.com' }`, `$One = @($Obj)`, and
+`$Obj = [pscustomobject]@{ Name = 'A'; AddressObj = 'a@example.com' }`, `$One = @($Obj)`, and
 `$Two = @($Obj, $Obj)`:
 
 | Expression | Result |
 | --- | --- |
-| `[string]$Obj` or `"$Obj"` | `@{Name=A; AddressObj=a@domain.com}` |
+| `[string]$Obj` or `"$Obj"` | `@{Name=A; AddressObj=a@example.com}` |
 | `$Obj.ToString()` | an empty string |
 | `[string]$One` or `"$One"` | an empty string |
 | `[string]$Two` | a single space |
@@ -192,7 +192,7 @@ Measured on **2026-09-16** with the same editions, in a standalone script with `
 | `[string]::IsNullOrEmpty($Two)` | `False` (`IsNullOrWhiteSpace` gives `True`) |
 | `[string]::IsNullOrEmpty($One.AddressObj)` | `False` |
 | `[string]@(@{ Name = 'x' })`, a hashtable in a one-item array | `System.Collections.Hashtable`, so `IsNullOrEmpty` gives `False` |
-| `[string]@('a@domain.com')` | `a@domain.com` |
+| `[string]@('a@example.com')` | `a@example.com` |
 | `[string]::IsNullOrEmpty(@())` | `True` |
 
 So `[string]::IsNullOrEmpty` cannot tell an empty array from one holding a single `PSCustomObject`, and for an

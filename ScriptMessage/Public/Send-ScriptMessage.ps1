@@ -58,8 +58,8 @@ function Send-ScriptMessage
 
     .EXAMPLE 
     $MessageArguments = @{
-        From = 'jdoe@domain.com'
-        To = 'bmayes@domain.com'
+        From = 'jdoe@example.com'
+        To = 'bmayes@example.com'
         CC = @()
         Subject = "Test Message"
         Body = @{
@@ -70,9 +70,9 @@ function Send-ScriptMessage
     Send-ScriptMessage -Service MicrosoftGraph -Type 'Mail' @MessageArguments
     .EXAMPLE 
     $MessageArguments = @{
-        From = 'jdoe@domain.com'
-        To = @('bmayes@domain.com')
-        CC = @( "hcoonly@domain.com", "plittle@domain.com")
+        From = 'jdoe@example.com'
+        To = @('bmayes@example.com')
+        CC = @( "hcoonly@example.com", "plittle@example.com")
         Subject = "Test Message"
         Body = @{
             Content = "This is a test message.`n`nThank you!"
@@ -84,14 +84,14 @@ function Send-ScriptMessage
     $MessageArguments = @{
         From = @{
             Name = 'John Doe'
-            Address = 'jdoe@domain.com'
+            Address = 'jdoe@example.com'
         }
         ReplyTo= @{
             Name = "Lisa Maloney"
-            Address = "lmaloney@domain.com"
+            Address = "lmaloney@example.com"
         }
-        To = @('bmayes@domain.com')
-        CC = @( "hcoonly@domain.com", "plittle@domain.com")
+        To = @('bmayes@example.com')
+        CC = @( "hcoonly@example.com", "plittle@example.com")
         SaveToSentItems = $true
         Subject = "Test Message"
         Body = @{
@@ -99,7 +99,7 @@ function Send-ScriptMessage
             Content = "This is a test message.`n`nThank you!"
         }
         Attachment = @('C:\StuffToSend\', 'C:\Documents\AnotherFile.pdf')
-        SenderId = 'senderaccount@domain.com'
+        SenderId = 'senderaccount@example.com'
     }
 
     Send-ScriptMessage -Service MicrosoftGraph @MessageArguments
@@ -129,9 +129,9 @@ function Send-ScriptMessage
 
     $MessageArguments = @{
         From = @{
-            Address = 'jdoe@domain.com'
+            Address = 'jdoe@example.com'
         }
-        To = @('bmayes@domain.com')
+        To = @('bmayes@example.com')
         Subject = "Test Message"
         Body = @{
             Content = "This is a test message.`n`nThank you!"

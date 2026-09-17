@@ -240,7 +240,7 @@ Describe 'Send-ScriptMessage chat message' {
             Mock -ModuleName ScriptMessage Get-MgDriveItem { $null } # The chat files folder does not exist yet.
             Mock -ModuleName ScriptMessage Invoke-MgGraphRequest {
                 # Graph returns the uploaded drive item as a hashtable, which the attachment converter reads by key.
-                @{ id = 'drive-item-id'; name = 'My File+1.pdf'; webUrl = 'https://www.domain.com/file' }
+                @{ id = 'drive-item-id'; name = 'My File+1.pdf'; webUrl = 'https://www.example.com/file' }
             }
             Mock -ModuleName ScriptMessage Invoke-MgInviteDriveItem { @{ id = 'invite-id' } }
         }
