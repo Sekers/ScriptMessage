@@ -422,6 +422,13 @@ function Disconnect-ScriptMessage_MicrosoftGraph
     return Disconnect-MgGraph
 }
 
+function Get-ScriptMessageContext_MicrosoftGraph
+{
+    # Returns nothing when there is no active connection. The caller adds the properties of whatever comes back
+    # to the context object it returns, so the shape of this is Microsoft Graph's to decide.
+    return Get-MgContext
+}
+
 function Send-ScriptMessage_MicrosoftGraph
 {
     [CmdletBinding()]
