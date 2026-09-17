@@ -43,10 +43,8 @@ function Connect-ScriptMessage
     }
     
     # Connect to the proper service. Each service checks for the modules its allowed message types need.
-    switch ($Service)
-    {
-        MicrosoftGraph {Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters}
-    }
+    $Registration = Get-ScriptMessageServiceRegistration -Service $Service
+    & $Registration.ConnectFunction @ConnectionParameters
     
     # Return the connection information, if requested.
     if ($ReturnConnectionInfo)

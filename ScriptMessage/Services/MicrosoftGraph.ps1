@@ -1064,3 +1064,10 @@ function Send-ScriptMessage_MicrosoftGraph
         $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
     }
 }
+
+# Announce this service to the module. Keep this at the bottom of the file, after the functions it names.
+Register-ScriptMessageService -Name 'MicrosoftGraph' `
+    -ConnectFunction    'Connect-ScriptMessage_MicrosoftGraph' `
+    -DisconnectFunction 'Disconnect-ScriptMessage_MicrosoftGraph' `
+    -SendFunction       'Send-ScriptMessage_MicrosoftGraph' `
+    -GetContextFunction 'Get-ScriptMessageContext_MicrosoftGraph'

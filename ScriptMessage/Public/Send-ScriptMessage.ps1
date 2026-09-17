@@ -287,6 +287,9 @@ function Send-ScriptMessage
 
     foreach ($serviceTypeObj in $ServiceType) # TODO: Catch errors once we have multiple services so if one fails the other(s) can still be processed.
     {
+        # Look the service up first, so an unregistered one stops the call before any other work.
+        $Registration = Get-ScriptMessageServiceRegistration -Service ([string]$serviceTypeObj.Service)
+
         # Set the connection parameters.
         $ConnectionParameters = @{
             ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
@@ -321,35 +324,29 @@ function Send-ScriptMessage
         # Connect to the messaging service, if necessary (e.g., API service).
         Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
 
-        switch ($($serviceTypeObj.Service))
-        {
-            'MicrosoftGraph'   {
-                $SendMessageParameters = [ordered]@{
-                    From = $From
-                    ReplyTo = $ReplyTo
-                    To = $To
-                    CC = $CC
-                    BCC = $BCC
-                    SaveToSentItems = $SaveToSentItems
-                    Subject = $Subject
-                    Body = $Body
-                    Attachment = $Attachment
-                    SenderId = $SenderId
-                    Type = $serviceTypeObj.Type
-                    IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
-                }
-
-                # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a
-                # setting it leaves unset, so pass it only when there is a real value. A Mail-only send does not
-                # need one, and the service reports a Chat message that has none.
-                if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
-                {
-                    $SendMessageParameters['ChatType'] = $ResolvedChatType
-                }
-
-                Send-ScriptMessage_MicrosoftGraph @SendMessageParameters
-            }
-            Default {throw "Invalid `'Service`' value."}
+        $SendMessageParameters = [ordered]@{
+            From = $From
+            ReplyTo = $ReplyTo
+            To = $To
+            CC = $CC
+            BCC = $BCC
+            SaveToSentItems = $SaveToSentItems
+            Subject = $Subject
+            Body = $Body
+            Attachment = $Attachment
+            SenderId = $SenderId
+            Type = $serviceTypeObj.Type
+            IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
         }
+
+        # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a setting
+        # it leaves unset, so pass it only when there is a real value. A Mail-only send does not need one, and
+        # the service reports a Chat message that has none.
+        if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
+        {
+            $SendMessageParameters['ChatType'] = $ResolvedChatType
+        }
+
+        & $Registration.SendFunction @SendMessageParameters
     }
 }

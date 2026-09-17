@@ -59,10 +59,8 @@ function Get-ScriptMessageContext
         }
 
         # Ask the service for its own connection information.
-        switch ($Service)
-        {
-            MicrosoftGraph {$ServiceConnectionInfo = Get-ScriptMessageContext_MicrosoftGraph}
-        }
+        $Registration = Get-ScriptMessageServiceRegistration -Service $Service
+        $ServiceConnectionInfo = & $Registration.GetContextFunction
 
         # Add in whatever the service returned. A service with no active connection returns nothing, which
         # leaves the context object holding only the common information above.
