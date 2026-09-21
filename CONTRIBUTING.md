@@ -30,7 +30,8 @@ Thank you for helping improve ScriptMessage. This guide covers the everyday work
   your own test tenant and describe what you tested in the pull request.
 - **Text files are UTF-8 with LF line endings and no byte order mark, and PowerShell files contain only ASCII.**
   Windows PowerShell 5.1 misreads non-ASCII characters in PowerShell files saved without a byte order mark.
-  `.gitattributes` handles line endings, and [AGENTS.md](./AGENTS.md) explains the rules and how to check them.
+  `.gitattributes` handles line endings, the test suite checks all three rules, and [AGENTS.md](./AGENTS.md)
+  explains them.
 - **Rebase only your own branch, and only before it merges.** Never force-push `develop` or `main`.
 
 AI assistants working in this repository follow [AGENTS.md](./AGENTS.md), which also holds the detailed rules

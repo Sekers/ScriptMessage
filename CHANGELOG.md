@@ -2,17 +2,20 @@
 
 ## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/1.1.1...develop)
 
+### Added
+
+- New Parameter: `Send-ScriptMessage -MailType` > Chooses how an email with more than one recipient is sent. It overrides the configuration file's `MailType` setting, and `Group` is used when neither one sets it.
+  - `Group` sends one email to all of the To, CC, and BCC recipients.
+  - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
+
 ### Fixed
 
-- `Send-ScriptMessage` now requires the `IncludeBCCInGroupChat` setting to be an unquoted `true` or `false`, not a quoted string. Quotes make the value text, and any non-empty text was read as `true`. So a configuration file holding `"IncludeBCCInGroupChat": "false"` added BCC recipients to a group chat and made their addresses visible to everyone in it, and passing the string `'false'` to `-IncludeBCCInGroupChat` did the same. Both now stop with an error naming the setting or the parameter; remove the quotes in the configuration file, and pass `$false` to the parameter.
-- `Send-ScriptMessage` now requires the `MgDisconnectWhenDone` setting to be an unquoted `true` or `false`, not a quoted string. Quotes make the value text, which was read as `true`, so a configuration file holding `"MgDisconnectWhenDone": "false"` disconnected from Microsoft Graph after sending, the opposite of what the setting asks for. It now stops with an error naming the setting; remove the quotes.
 - `Send-ScriptMessage` now honors an explicit `-ChatType OneOnOne`. The configuration file's `ChatType` setting was used in its place, so a call asking for one-on-one chats sent a single group chat when that setting was `Group`. An explicit `-ChatType Group` was unaffected.
 - `Send-ScriptMessage` now honors an explicit `-IncludeBCCInGroupChat $false`. The configuration file's `IncludeBCCInGroupChat` setting was used in its place, so a call asking to keep BCC recipients out of a group chat added them anyway when that setting was `true`, making those addresses visible to everyone in the chat. An explicit `-IncludeBCCInGroupChat $true` was unaffected.
 - `Send-ScriptMessage` now sends mail without a `ChatType` setting in the configuration file. A Mail-only send failed without it, reporting "Cannot convert null to type ChatType", even though `ChatType` only affects chat; a configuration file listing only `Mail` in `AllowableMessageTypes`, or one written before the setting was added in version 1.0.8, was affected. A `Chat` send with no chat type, because the setting is missing or blank and `-ChatType` was not passed, now reports that in the returned result's `Error` property and names both places it can be set.
 - `Get-ScriptMessageContext -ReturnCachedContext` no longer reports a connection that `Disconnect-ScriptMessage` has already ended. Disconnecting left the cached context in place, so a cached read kept returning the account and scopes of the finished session, and only a read without `-ReturnCachedContext` showed the truth. Disconnecting now clears that service's cached context, so the next cached read asks the service again.
-- `Send-ScriptMessage` now reports that `-MailType` was ignored instead of accepting it in silence. No messaging service acts on that parameter, so a call passing it behaved as though it had not, and the returned result's `MailType` property is empty for the same reason. The value is still ignored, but the call now warns which service does not support it and carries on sending.
+- Minor: Improved how `Send-ScriptMessage` validates configuration file settings, so a value in a form a setting does not support is no longer misread.
 - Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
-- Minor: `Get-Help Send-ScriptMessage -Parameter MailType` now describes the parameter. It returned an internal note reading "TODO: Implement MailType (similar to ChatType so we can do 1:1 emailing)".
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
 
 ---

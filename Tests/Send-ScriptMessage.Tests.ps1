@@ -302,6 +302,219 @@ Describe 'Send-ScriptMessage mail attachment' {
     }
 }
 
+Describe 'Send-ScriptMessage mail type' {
+    BeforeAll {
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $MailArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Mail'
+            From    = 'sender@example.org'
+            To      = @('a@example.org', 'b@example.org')
+            CC      = 'c@example.org'
+            BCC     = 'd@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    Context 'A configuration that sets MailType to Group' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail')
+                        MailType              = 'Group'
+                        MgPermissionType      = 'Application'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends one message to every recipient' {
+            $Result = Send-ScriptMessage @MailArguments
+
+            $Result.MailType | Should -Be 'Group'
+            $Result.Status | Should -BeTrue
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly -ParameterFilter {
+                (@($BodyParameter.Message.ToRecipients | ForEach-Object { $_.EmailAddress.Address }) -join ',') -eq 'a@example.org,b@example.org' -and
+                (@($BodyParameter.Message.CcRecipients | ForEach-Object { $_.EmailAddress.Address }) -join ',') -eq 'c@example.org' -and
+                (@($BodyParameter.Message.BccRecipients | ForEach-Object { $_.EmailAddress.Address }) -join ',') -eq 'd@example.org'
+            }
+        }
+
+        # 'OneOnOne' is the first MailType enum member, so its numeric value is 0. A truthiness test on the
+        # parameter cannot tell it apart from an unsupplied value.
+        It 'an explicit -MailType OneOnOne wins over the configuration' {
+            $Result = Send-ScriptMessage @MailArguments -MailType OneOnOne
+
+            $Result.MailType | Should -Be 'OneOnOne'
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 4 -Exactly
+        }
+    }
+
+    Context 'A configuration that sets MailType to OneOnOne' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail')
+                        MailType              = 'OneOnOne'
+                        MgPermissionType      = 'Application'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends each recipient a message with only them in To' {
+            $Result = Send-ScriptMessage @MailArguments
+
+            $Result.MailType | Should -Be 'OneOnOne'
+            $Result.Status | Should -BeTrue
+            $Result.Error | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 4 -Exactly
+            foreach ($Address in @('a@example.org', 'b@example.org', 'c@example.org', 'd@example.org'))
+            {
+                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly -ParameterFilter {
+                    (@($BodyParameter.Message.ToRecipients | ForEach-Object { $_.EmailAddress.Address }) -join ',') -eq $Address -and
+                    ($null -eq $BodyParameter.Message.CcRecipients) -and
+                    ($null -eq $BodyParameter.Message.BccRecipients) -and
+                    ($BodyParameter.Message.Subject -eq 'Test subject')
+                }
+            }
+        }
+
+        It 'sends an address listed more than once, in any case, one message' {
+            $Arguments = $MailArguments.Clone()
+            $Arguments['To'] = @('a@example.org', 'A@Example.org', 'b@example.org')
+            $Arguments['CC'] = 'a@example.org'
+            $Arguments.Remove('BCC')
+
+            $null = Send-ScriptMessage @Arguments
+
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 2 -Exactly
+        }
+
+        It 'an explicit -MailType Group wins over the configuration' {
+            $Result = Send-ScriptMessage @MailArguments -MailType Group
+
+            $Result.MailType | Should -Be 'Group'
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+        }
+
+        It 'still sends to the other recipients when one fails, and names the one that failed' {
+            Mock -ModuleName ScriptMessage Send-MgUserMail { throw 'Mailbox unavailable' } -ParameterFilter {
+                $BodyParameter.Message.ToRecipients[0].EmailAddress.Address -eq 'b@example.org'
+            }
+
+            $Result = Send-ScriptMessage @MailArguments
+
+            $Result.Status | Should -Not -BeTrue
+            @($Result.Error).Count | Should -Be 1
+            $Result.Error[0].Type | Should -Be 'Error'
+            $Result.Error[0].Message | Should -BeLike "*'b@example.org'*Mailbox unavailable*"
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 4 -Exactly
+        }
+    }
+
+    Context 'A configuration with no MailType setting' {
+        BeforeAll {
+            # A configuration file can leave MailType out entirely.
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail')
+                        MgPermissionType      = 'Application'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends one message to every recipient' {
+            $Result = Send-ScriptMessage @MailArguments
+
+            $Result.MailType | Should -Be 'Group'
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+        }
+    }
+
+    Context 'A configuration that leaves MailType blank' {
+        BeforeAll {
+            # Templates/config_scriptmessage.json writes a setting it leaves unset as an empty string.
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail')
+                        MailType              = ''
+                        MgPermissionType      = 'Application'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+        }
+
+        It 'sends one message to every recipient' {
+            $Result = Send-ScriptMessage @MailArguments
+
+            $Result.MailType | Should -Be 'Group'
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+        }
+    }
+
+    Context 'A configuration with an unrecognized MailType' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Mail', 'Chat')
+                        MailType              = 'Individual'
+                        ChatType              = 'OneOnOne'
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+            Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
+                [pscustomobject]@{
+                    Account = 'sender@example.org'
+                    Scopes  = @('Chat.ReadWrite')
+                }
+            }
+            Mock -ModuleName ScriptMessage New-MgChat { [pscustomobject]@{ Id = 'new-chat-id' } }
+            Mock -ModuleName ScriptMessage New-MgChatMessage { [pscustomobject]@{ Id = 'new-message-id' } }
+        }
+
+        It 'stops a Mail send before connecting, naming the setting' {
+            { Send-ScriptMessage @MailArguments } |
+                Should -Throw "*'MailType' setting*must be one of: OneOnOne, Group*'Individual'*"
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+        }
+
+        # MailType only affects Mail, so a value only Mail would read must not stop a Chat send.
+        It 'does not stop a Chat send' {
+            $Arguments = $MailArguments.Clone()
+            $Arguments['Type'] = 'Chat'
+
+            $Result = Send-ScriptMessage @Arguments -ErrorAction Stop
+
+            $Result.Error | Should -BeNullOrEmpty
+            # A one-on-one chat goes to every recipient, BCC included.
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 4 -Exactly
+        }
+    }
+}
+
 Describe 'Send-ScriptMessage configuration defaults' {
     BeforeAll {
         Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
@@ -483,7 +696,7 @@ Describe 'Send-ScriptMessage configuration defaults' {
         }
     }
 
-    Context 'Boolean settings and parameters reject strings' {
+    Context 'Boolean settings and parameters' {
         BeforeAll {
             Mock -ModuleName ScriptMessage Disconnect-MgGraph { }
 
@@ -534,14 +747,17 @@ Describe 'Send-ScriptMessage configuration defaults' {
             }
         }
 
-        Context 'A configuration file that quotes IncludeBCCInGroupChat' {
+        # A boolean setting is an opt-in flag, on only when it equals $true. Quoted text is not $true, so a
+        # quoted "false" must read as off; a [bool] cast would read it as on.
+        Context 'A configuration file that quotes IncludeBCCInGroupChat as "false"' {
             BeforeAll {
                 Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
                     $Config = [pscustomobject]@{
                         MicrosoftGraph = [pscustomobject]@{
-                            AllowableMessageTypes = @('Mail')
+                            AllowableMessageTypes = @('Mail', 'Chat')
+                            ChatType              = 'Group'
                             IncludeBCCInGroupChat = 'false'
-                            MgPermissionType      = 'Application'
+                            MgPermissionType      = 'Delegated'
                             MgDisconnectWhenDone  = $false
                         }
                     }
@@ -549,14 +765,16 @@ Describe 'Send-ScriptMessage configuration defaults' {
                 }
             }
 
-            It 'stops without sending' {
-                { Send-ScriptMessage @MailArguments } |
-                    Should -Throw "*'IncludeBCCInGroupChat' setting*must be a boolean*"
-                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+            It 'leaves BCC recipients out of the group chat' {
+                $Result = Send-ScriptMessage @ChatArguments -BCC 'blind@example.org' -WarningAction SilentlyContinue
+
+                @($Result.Error | Where-Object { $_.Type -eq 'Warning' -and $_.Message -like '*not included in the group chat*' }).Count |
+                    Should -Be 1
+                Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly
             }
         }
 
-        Context 'A configuration file that quotes MgDisconnectWhenDone' {
+        Context 'A configuration file that quotes MgDisconnectWhenDone as "false"' {
             BeforeAll {
                 Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
                     $Config = [pscustomobject]@{
@@ -571,12 +789,11 @@ Describe 'Send-ScriptMessage configuration defaults' {
                 }
             }
 
-            # The Microsoft Graph service consumes this setting after its message type loop, so it checks the
-            # value before that loop to keep an unreadable one from surfacing after the message has gone out.
-            It 'stops without sending' {
-                { Send-ScriptMessage @MailArguments } |
-                    Should -Throw "*'MgDisconnectWhenDone' setting*must be a boolean*"
-                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+            It 'sends and stays connected' {
+                $null = Send-ScriptMessage @MailArguments
+
+                Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+                Should -Invoke -ModuleName ScriptMessage Disconnect-MgGraph -Times 0 -Exactly
             }
         }
     }

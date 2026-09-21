@@ -506,6 +506,12 @@ function Send-ScriptMessage_MicrosoftGraph
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
+        [MailType]$MailType = 'Group',
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
         [ChatType]$ChatType,
 
         [Parameter(
@@ -529,11 +535,6 @@ function Send-ScriptMessage_MicrosoftGraph
     {
         $ServiceConfig = Get-ScriptMessageConfig -Service $ServiceId
     }
-
-    # This service's own boolean settings, checked before anything is sent so a value the module cannot read
-    # stops the send instead of surfacing after the message has already gone out.
-    $MgDisconnectWhenDone = Get-ScriptMessageBooleanSetting -Name 'MgDisconnectWhenDone' `
-        -Value $ServiceConfig.MgDisconnectWhenDone
 
     # Send the message on each supported service specified.
     foreach ($typeItem in $Type)
@@ -597,9 +598,70 @@ function Send-ScriptMessage_MicrosoftGraph
                         {
                             $SenderId = $Message.From.emailAddress.Address # Note: This is correct as 'xxxx.Address' (not 'AddressObj'). It is converted Microsoft's to IMicrosoftGraphRecipient.
                         }
-            
+
                         # Send Email.
-                        $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
+                        switch ($MailType)
+                        {
+                            Group
+                            {
+                                $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
+                            }
+                            OneOnOne
+                            {
+                                # Each recipient gets a message with only them in To, so nobody sees who else was sent
+                                # one. An address listed more than once, even across To, CC, and BCC, gets one message;
+                                # hashtable keys compare without case, as email addresses do.
+                                $IndividualRecipients = [System.Collections.Generic.List[Object]]::new()
+                                $SeenAddresses = @{}
+                                foreach ($recipient in @($Message.To) + @($Message.CC) + @($Message.BCC))
+                                {
+                                    $RecipientAddress = $recipient.EmailAddress.Address
+                                    if ([string]::IsNullOrWhiteSpace($RecipientAddress) -or $SeenAddresses.ContainsKey($RecipientAddress))
+                                    {
+                                        continue
+                                    }
+                                    $SeenAddresses[$RecipientAddress] = $true
+                                    $IndividualRecipients.Add($recipient)
+                                }
+
+                                # One recipient's failure is reported and the rest are still sent, so Status is $true only
+                                # when every message went out. -ErrorAction Stop makes a failure reach the catch whether or
+                                # not the cmdlet reports it as a terminating error.
+                                $SentCount = 0
+                                foreach ($recipient in $IndividualRecipients)
+                                {
+                                    # A new request for each recipient rather than one edited in place, so no two
+                                    # requests share an object.
+                                    $IndividualMessage = [ordered]@{}
+                                    foreach ($field in $EmailParams.Message.Keys)
+                                    {
+                                        $IndividualMessage[$field] = $EmailParams.Message[$field]
+                                    }
+                                    $IndividualMessage['ToRecipients'] = @($recipient)
+                                    $IndividualMessage['CcRecipients'] = $null
+                                    $IndividualMessage['BccRecipients'] = $null
+                                    $IndividualEmailParams = [ordered]@{
+                                        SaveToSentItems = $EmailParams.SaveToSentItems
+                                        Message = $IndividualMessage
+                                    }
+
+                                    try
+                                    {
+                                        $null = Send-MgUserMail -UserId $SenderId -BodyParameter $IndividualEmailParams -PassThru -ErrorAction Stop
+                                        $SentCount++
+                                    }
+                                    catch
+                                    {
+                                        $MgErrorMessages += "Mail not sent to `'$($recipient.EmailAddress.Address)`': $_"
+                                    }
+                                }
+
+                                if ($SentCount -eq $IndividualRecipients.Count)
+                                {
+                                    $SendEmailMessageResult = $true
+                                }
+                            }
+                        }
                     }
                 }
                 catch
@@ -684,7 +746,7 @@ function Send-ScriptMessage_MicrosoftGraph
                 $SendScriptMessageResult = [PSCustomObject]@{
                     MessageService = $ServiceId
                     MessageType    = $typeItem
-                    MailType       = $MailType # TODO: MAILTYPE
+                    MailType       = $MailType
                     Status         = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
                     Error          = $SendScriptMessageResult_Error
                     SentFrom       = $SendScriptMessageResult_SentFrom
@@ -1066,17 +1128,17 @@ function Send-ScriptMessage_MicrosoftGraph
         }
     }
 
-    # Disconnect from the Microsoft Graph API, if enabled in the configuration file.
-    if ($MgDisconnectWhenDone)
+    # Disconnect from the Microsoft Graph API, if enabled in the configuration file. The setting is an opt-in flag,
+    # on only when it equals $true; keep it on the left, because a truthiness test reads the text "false" as $true.
+    if ($ServiceConfig.MgDisconnectWhenDone -eq $true)
     {
         $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
     }
 }
 
 # Announce this service to the module. Keep this at the bottom of the file, after the functions it names.
-# 'MailType' is absent from SupportedSetting on purpose: nothing here acts on it.
 Register-ScriptMessageService -Name 'MicrosoftGraph' `
-    -SupportedSetting   'ChatType', 'IncludeBCCInGroupChat' `
+    -SupportedSetting   'MailType', 'ChatType', 'IncludeBCCInGroupChat' `
     -ConnectFunction    'Connect-ScriptMessage_MicrosoftGraph' `
     -DisconnectFunction 'Disconnect-ScriptMessage_MicrosoftGraph' `
     -SendFunction       'Send-ScriptMessage_MicrosoftGraph' `

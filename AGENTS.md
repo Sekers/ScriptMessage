@@ -181,28 +181,15 @@ without going to look.
   it and corrupts it.
 
 Git will not show you a line-ending mistake: it normalizes before diffing, so a wrong file produces no diff
-and leaves `git status` clean. Use this instead, which wants `w/lf` on every row:
+and leaves `git status` clean. **`Tests/FileEncoding.Tests.ps1` enforces all of these rules** as part of the
+test suite: no byte order mark (a module manifest that holds a non-ASCII character is the one exception), LF line
+endings, and only ASCII in PowerShell files. It checks untracked files that are not ignored as well as tracked
+ones, so it catches a new file before it is committed, and it skips any file containing a NUL byte. A failure
+names each offending file.
 
-```powershell
-git ls-files --eol -- '*.ps1' '*.psm1' '*.psd1' '*.md' '*.json' '*.yml'
-```
-
-Nothing enforces the BOM and ASCII rules automatically yet, so check them before committing. Run this from the
-repository root; it prints nothing when every tracked file passes. A module manifest saved with a BOM on purpose
-is reported, and is the one expected exception:
-
-```powershell
-git ls-files | ForEach-Object {
-    $Path = Join-Path $PWD.ProviderPath $_   # .NET does not follow PowerShell's current location
-    $Bytes = [System.IO.File]::ReadAllBytes($Path)
-    if ($Bytes.Length -ge 3 -and $Bytes[0] -eq 0xEF -and $Bytes[1] -eq 0xBB -and $Bytes[2] -eq 0xBF) { "BOM: $_" }
-    if (($_ -match '\.(ps1|psm1|psd1|ps1xml)$') -and ([System.IO.File]::ReadAllText($Path) -match '[^\x00-\x7F]')) { "Non-ASCII: $_" }
-}
-```
-
-New files can pick up CRLF on Windows (VS Code's default line ending follows the operating system), so check
-a file you created with the `git ls-files --eol` command above once it is tracked. Never change the line
-endings of a file you are not otherwise editing. To fix one that is wrong:
+New files can pick up CRLF on Windows (VS Code's default line ending follows the operating system), so run the
+tests after creating a file, not only after changing code. Never change the line endings of a file you are not
+otherwise editing. To fix one that is wrong:
 
 ```powershell
 $Path = (Resolve-Path -LiteralPath '<file>').ProviderPath   # .NET needs a full path
@@ -218,6 +205,24 @@ $Text = [System.IO.File]::ReadAllText($Path)
   `AliasesToExport`.
 - **Comments describe the code as it is now**, never what it used to do or what a fix changed. Change history
   belongs in the commit message and the changelog.
+- **A boolean configuration setting is an opt-in flag: on only when it equals `$true`.** Read it as
+  `$ServiceConfig.<Name> -eq $true`, with the setting on the left, so missing, `false`, quoted text, and typos
+  all mean off. Never read one with a `[bool]` cast, a truthiness test, or `$true -eq`: each of those reads the
+  text `"false"` as true. Name a new boolean setting so that `true` opts in and off is the safe state.
+
+## Testing
+
+- **Run `.\Tests\Invoke-Tests.ps1` from the repository root before proposing a commit.** It runs every
+  `Tests/*.Tests.ps1` file under both Windows PowerShell 5.1 and PowerShell 7, each in a fresh process, and the
+  CI workflow runs the same script. `-Edition Core` runs PowerShell 7 alone for a quicker check; finish with both,
+  because the editions behave differently in places.
+- **The Pester files never connect to a tenant** and need no Microsoft Graph modules. Mock the service functions
+  such as `Send-ScriptMessage_MicrosoftGraph`, or the Microsoft Graph cmdlets they call. Pester can only mock a
+  command that exists, so a test that mocks a Graph cmdlet first defines a stand-in for it inside the module that
+  throws if reached, as the existing files do.
+- **The other scripts in `Tests/` are not tests.** `ScriptMessage_Testing.ps1` and
+  `ScriptMessage_Testing (Installed Module).ps1` are scratch scripts that load the real configuration from
+  `Tests/Config/`, so anything run from them sends real messages; the safety rules above apply.
 
 ## Research notes
 

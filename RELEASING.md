@@ -95,7 +95,12 @@ Rules for the shared branches:
   exist on `develop`, so every later release pull request would conflict with it.
 - **Never rebase or force-push `main` or `develop`.** Release tags cannot move, and rewriting shared history
   breaks every contributor's clone. Rebase only your own feature branch, and only before it merges.
-- **After every release or hotfix, merge `main` back into `develop`**, so `develop` contains the release commit.
+- **After every release or hotfix, merge `main` back into `develop` with a merge commit, never a squash or a
+  rebase**, so `develop` contains the tagged release commit. A squash or a rebase copies `main`'s changes into
+  new commits instead, so `develop` never contains the tagged commit, and a later release pull request can
+  conflict with a hotfix that `develop` already holds under a different commit. `develop` also allows squash
+  merges, for consolidating a feature branch, and GitHub's merge button offers the method used last, so check it
+  before merging `main` back.
 - **Stable release tags go only on `main`.** Prerelease tags may go on `develop`.
 
 ## Changelog
@@ -139,7 +144,7 @@ section.
    3. Builds the package once and publishes it to the PowerShell Gallery, in the `psgallery` environment.
    4. Creates the GitHub release from the version's changelog section, attaches the same package, and
       publishes the release.
-6. **Merge `main` back into `develop`.**
+6. **Merge `main` back into `develop` with a merge commit**, not a squash ([Branches](#branches) explains why).
 
 The GitHub release is created last so that a failed check or publish never leaves behind a public release, which
 immutable releases would lock, for a version that did not ship.
@@ -158,8 +163,8 @@ immutable releases would lock, for a version that did not ship.
 2. Fix the problem, add tests, bump the patch version, and add a dated changelog section for the hotfix.
 3. Open a pull request into `main`, merge it with a merge commit, and tag and push as in
    [Releasing a version](#releasing-a-version), steps 4 and 5.
-4. Merge `main` into `develop`. In `CHANGELOG.md`, keep the `[Unreleased]` section from `develop` at the top,
-   with the hotfix's section below it.
+4. Merge `main` into `develop` with a merge commit. In `CHANGELOG.md`, keep the `[Unreleased]` section from
+   `develop` at the top, with the hotfix's section below it.
 
 ## Prereleases
 
@@ -174,7 +179,8 @@ A repository admin configures these once in the GitHub repository settings. They
 enforceable:
 
 - **Branch rulesets for `main` and `develop`:** require a pull request, require the `Workflow lint` and `Pester`
-  checks to pass, and block force pushes and deletion. For `main`, allow only merge commits.
+  checks to pass, and block force pushes and deletion. For `main`, allow only merge commits. For `develop`, also
+  allow squash merges, for consolidating a feature branch.
 - **A tag ruleset for release tags:** target tags that look like versions, and block updates and deletion, with
   bypass only for admins.
 - **Immutable releases:** enabled, so a published release's tag and assets cannot change.
@@ -194,6 +200,6 @@ enforceable:
 - [ ] The tag is annotated, has no `v` prefix, and is on the merge commit.
 - [ ] Every job in the Release workflow passed.
 - [ ] The version appears on the PowerShell Gallery, and the GitHub release has the right notes and package.
-- [ ] `main` was merged back into `develop`.
+- [ ] `main` was merged back into `develop` with a merge commit.
 - [ ] Anything that needs a live Microsoft Graph test was tested separately in a test tenant. The automated tests
       never connect to a tenant.

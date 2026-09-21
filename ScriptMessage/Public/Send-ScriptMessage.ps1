@@ -51,7 +51,9 @@ function Send-ScriptMessage
     If not specified, defaults to the address inside of the 'From' parameter.
     .PARAMETER MailType
     Override the default 'MailType' specified in the configuration file for the messaging service being used. Options are 'OneOnOne' or 'Group'.
-    No messaging service supports this parameter yet, so a value given here is reported as unsupported and ignored.
+    'Group' sends one message to all of the To, CC, and BCC recipients. 'OneOnOne' sends each recipient a separate message with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once, even across To, CC, and BCC, receives one message.
+    Each message counts separately against the messaging service's sending limits.
+    If neither this parameter nor the configuration file sets a mail type, 'Group' is used.
     .PARAMETER ChatType
     Override the default 'ChatType' specified in the configuration file for the messaging service being used. Options are 'OneOnOne' or 'Group'.
     .PARAMETER IncludeBCCInGroupChat
@@ -230,7 +232,6 @@ function Send-ScriptMessage
         ValueFromPipelineByPropertyName = $true)]
         [string]$SenderId,
 
-        # TODO: Implement MailType (similar to ChatType so we can do 1:1 emailing)
         [Parameter(
         Mandatory = $false,
         ValueFromPipeline = $true,
@@ -340,15 +341,42 @@ function Send-ScriptMessage
         }
 
         # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value", which is also what an
-        # unsupplied [Nullable[bool]] holds.
+        # unsupplied [Nullable[bool]] holds. The configured value is an opt-in flag, on only when it equals
+        # $true, so anything else, including quoted text, leaves BCC recipients out. Keep the setting on the
+        # left: a [bool] cast, or $true on the left, reads the text "false" as $true.
         if ($null -ne $IncludeBCCInGroupChat)
         {
             [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat
         }
         else
         {
-            [bool]$ResolvedIncludeBCCInGroupChat = Get-ScriptMessageBooleanSetting -Name 'IncludeBCCInGroupChat' `
-                -Value $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
+            [bool]$ResolvedIncludeBCCInGroupChat = ($ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat -eq $true)
+        }
+
+        # 'MailType' is resolved only for a send that includes Mail, so a configuration value that only Mail would
+        # use cannot stop a Chat send. 'Group' applies when neither the parameter nor the configuration file sets
+        # one, including the empty string the configuration template uses for a setting it leaves unset, so a
+        # configuration file without the setting sends one message to every recipient.
+        $ResolvedMailType = $null
+        if ($serviceTypeObj.Type -contains [MessageType]::Mail)
+        {
+            $ConfiguredMailType = $ConnectionParameters.ServiceConfig.MailType
+            if ($PSBoundParameters.ContainsKey('MailType'))
+            {
+                $ResolvedMailType = $MailType
+            }
+            elseif ([string]::IsNullOrWhiteSpace($ConfiguredMailType))
+            {
+                $ResolvedMailType = [MailType]::Group
+            }
+            elseif ($ConfiguredMailType -in [Enum]::GetNames([MailType]))
+            {
+                $ResolvedMailType = [MailType]$ConfiguredMailType
+            }
+            else
+            {
+                throw "The `'MailType`' setting in the ScriptMessage configuration file must be one of: $([Enum]::GetNames([MailType]) -join ', '). Found `'$ConfiguredMailType`'."
+            }
         }
 
         # Connect to the messaging service, if necessary (e.g., API service).
@@ -376,6 +404,11 @@ function Send-ScriptMessage
         if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
         {
             $SendMessageParameters['ChatType'] = $ResolvedChatType
+        }
+
+        if ($null -ne $ResolvedMailType)
+        {
+            $SendMessageParameters['MailType'] = $ResolvedMailType
         }
 
         & $Registration.SendFunction @SendMessageParameters

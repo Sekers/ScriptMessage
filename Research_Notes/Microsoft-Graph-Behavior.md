@@ -89,6 +89,17 @@ the module has no way to report a later delivery failure.
 **Unverified:** that `Send-MgUserMail -PassThru` returns only `$true`. A comment in the module says so; it was
 not checked.
 
+**From source:** with `MailType` `Group`, `Send-ScriptMessage_MicrosoftGraph` calls `Send-MgUserMail` once, with
+no `-ErrorAction`, inside a `try` whose `catch` puts the error in the result's `Error` property. With `OneOnOne`
+it calls `Send-MgUserMail` once per unique recipient with `-ErrorAction Stop`, so each failure reaches that
+recipient's own `catch` and the remaining recipients are still sent.
+
+**Unverified:** whether a failed `Send-MgUserMail` raises a terminating error. The `Group` send depends on it: if
+the error is non-terminating, it goes to the caller's error stream instead of `Error`, and `Status` is empty.
+
+**Unverified:** how Exchange Online throttles many `sendMail` requests from one mailbox in quick succession,
+which a `OneOnOne` send to a long recipient list makes. The sendMail page quoted above gives no figures.
+
 ## 4. From documentation: creating one-on-one and group chats
 
 The Create chat page: "Only one one-on-one chat can exist between two members. If a one-on-one chat already

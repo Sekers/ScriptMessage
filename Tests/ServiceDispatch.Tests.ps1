@@ -37,13 +37,11 @@ Describe 'The service table' {
         }
     }
 
-    It 'records which generic settings Microsoft Graph honors, and which it does not' {
+    It 'records that Microsoft Graph honors every generic setting' {
         InModuleScope ScriptMessage {
             $Supported = (Get-ScriptMessageServiceRegistration -Service 'MicrosoftGraph').SupportedSetting
 
-            $Supported | Should -Contain 'ChatType'
-            $Supported | Should -Contain 'IncludeBCCInGroupChat'
-            $Supported | Should -Not -Contain 'MailType'
+            ($Supported | Sort-Object) -join ', ' | Should -Be 'ChatType, IncludeBCCInGroupChat, MailType'
         }
     }
 }
@@ -53,6 +51,15 @@ Describe 'A generic setting the service does not support' {
         # Pester can only mock a command that exists, so the stand-in has to come before the mock.
         InModuleScope ScriptMessage {
             function script:Send-MgUserMail { param($UserId, $BodyParameter, [switch]$PassThru) throw 'Send-MgUserMail stand-in called without a mock.' }
+        }
+
+        # Microsoft Graph honors every generic setting, so narrow its entry to leave one out. A service cannot
+        # be registered under a new name while -Service is the MessagingService enum.
+        InModuleScope ScriptMessage {
+            $script:OriginalRegistration = $script:ScriptMessageServiceTable['MicrosoftGraph']
+            $Narrowed = $script:OriginalRegistration.PSObject.Copy()
+            $Narrowed.SupportedSetting = @('ChatType', 'IncludeBCCInGroupChat')
+            $script:ScriptMessageServiceTable['MicrosoftGraph'] = $Narrowed
         }
 
         Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
@@ -77,6 +84,13 @@ Describe 'A generic setting the service does not support' {
             To      = 'recipient@example.org'
             Subject = 'Test subject'
             Body    = 'Test body'
+        }
+    }
+
+    AfterAll {
+        # Leaving the narrowed entry in the table would break every later test that expects the real service.
+        InModuleScope ScriptMessage {
+            $script:ScriptMessageServiceTable['MicrosoftGraph'] = $script:OriginalRegistration
         }
     }
 

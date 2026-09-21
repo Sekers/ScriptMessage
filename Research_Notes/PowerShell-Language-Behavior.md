@@ -282,17 +282,33 @@ an empty string. `Send-ScriptMessage_MicrosoftGraph` then reports a Chat message
 `IncludeBCCInGroupChat` needs no such guard: it is resolved through a `[bool]`-constrained variable inside a
 function, so a configuration file with no `IncludeBCCInGroupChat` setting yields `False`.
 
-The parameter binder is stricter than a cast or a validation set, and that difference is load-bearing. A
-`[bool]` or `[Nullable[bool]]` parameter refuses a string, while `[Object]` with `[ValidateSet($null, $true,
-$false)]` accepts `'false'` and leaves it a string for a later `[bool]` cast to turn into `True`. A
-configuration file value never passes through a binder at all, so it needs its own check.
+The parameter binder is stricter than a cast or a validation set. A `[bool]` or `[Nullable[bool]]` parameter
+refuses a string, while `[Object]` with `[ValidateSet($null, $true, $false)]` accepts `'false'` and leaves it a
+string for a later `[bool]` cast to turn into `True`. A configuration file value never passes through a binder
+at all.
+
+Comparing with `-eq` depends on which side the value is on. Measured on **2026-09-21**, same editions, both
+agreeing:
+
+| Value | `$value -eq $true` | `$true -eq $value` |
+| --- | --- | --- |
+| `'true'` | `True` | `True` |
+| `'false'` | `False` | `True` |
+| `'yes'` | `False` | `True` |
+| `$null` | `False` | `False` |
+| `$false` / `$true` | `False` / `True` | `False` / `True` |
+
+With the string on the left, `-eq` converts `$true` to the text `True` and compares without regard to case, so
+only text reading "true" matches. With `$true` on the left, it converts the string to `[bool]`, which makes every
+non-empty string `True`, exactly as a cast does.
 
 **From source:** `Send-ScriptMessage` declares `-IncludeBCCInGroupChat` as `[Nullable[bool]]`, which keeps the
-three states it needs (unset, true, false) and makes the binder reject a string. A configuration file value
-reaches no binder, so `Get-ScriptMessageBooleanSetting` rejects any value that is `-isnot [bool]`. Each layer
-calls it for the settings it owns and before anything is sent: `Send-ScriptMessage` for the generic
-`IncludeBCCInGroupChat`, and `Send-ScriptMessage_MicrosoftGraph` for its own `MgDisconnectWhenDone`, ahead of
-that function's message type loop. Unquoted JSON `true` and `false` arrive as real booleans and are unaffected.
+three states it needs (unset, true, false) and makes the binder reject a string. Every boolean configuration
+setting is read as an opt-in flag, `<setting> -eq $true` with the setting on the left: `IncludeBCCInGroupChat` in
+`Send-ScriptMessage`, `MgDisconnectWhenDone` in `Send-ScriptMessage_MicrosoftGraph`, and
+`MgDelegatedPermission_RequestChatReadPermission` and `MgDelegatedPermission_RequestFilesReadWritePermission` in
+`Connect-ScriptMessage_MicrosoftGraph`. A missing setting, `false`, quoted text, and a typo all read as off, which
+is the safe state of all four. Unquoted JSON `true` and `false` arrive as real booleans.
 
 ### What this does not establish
 
@@ -302,3 +318,6 @@ that function's message type loop. Unquoted JSON `true` and `false` arrive as re
 - `[Nullable[bool]]` and `[CT?]` parameters were not tested here; section 1 covers an unassigned
   `[Nullable[bool]]` variable only.
 - Only `$null` was tested as the rejected value. Empty strings and other unconvertible values were not.
+- Numbers were measured only with the value on the left, the same day: `1 -eq $true` is `True` and
+  `0 -eq $true` is `False`. A JSON array or object in a boolean setting was not tested; an array on the left of
+  `-eq` filters rather than compares.
