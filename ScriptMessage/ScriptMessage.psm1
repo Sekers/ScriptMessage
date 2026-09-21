@@ -1,6 +1,11 @@
 # Global Variables
 New-Variable -Name 'ScriptMessage_Global_CachedServiceContext' -Value ([PSCustomObject]@{}) -Scope Global -Force
 
+# Module Variables
+# Each file in Services/ registers itself here as it is dot-sourced below. Module scope rather than global:
+# nothing outside the module reads it, and it is rebuilt from scratch on every import.
+$script:ScriptMessageServiceTable = [ordered]@{}
+
 # Aliases
 
 # Type Definitions

@@ -12,6 +12,9 @@ function Connect-ScriptMessage
 
         .PARAMETER Service
         Specify the messaging service to connect to.
+        .PARAMETER ServiceConfig
+        Optional. The messaging service's section of the configuration file, for a caller that has already read it.
+        If not provided, the configuration file is read.
         .PARAMETER ReturnConnectionInfo
         Returns connection information after performing function.
 
@@ -29,6 +32,11 @@ function Connect-ScriptMessage
         ValueFromPipelineByPropertyName = $true)]
         [MessagingService]$Service,
 
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipelineByPropertyName = $true)]
+        [pscustomobject]$ServiceConfig,
+
         [parameter(
         Position=1,
         Mandatory=$false,
@@ -36,17 +44,20 @@ function Connect-ScriptMessage
         ValueFromPipelineByPropertyName=$true)]
         [switch]$ReturnConnectionInfo
     )
-    
-    # Set the connection parameters.
-    $ConnectionParameters = @{
-        ServiceConfig = Get-ScriptMessageConfig -Service $Service
-    }
-    
-    # Connect to the proper service. Each service checks for the modules its allowed message types need.
-    switch ($Service)
+
+    # Set the connection parameters. A caller that has already read the configuration file passes the service's
+    # section, which is what keeps one send to a single read of the file.
+    if (-not $PSBoundParameters.ContainsKey('ServiceConfig'))
     {
-        MicrosoftGraph {Connect-ScriptMessage_MicrosoftGraph @ConnectionParameters}
+        $ServiceConfig = Get-ScriptMessageConfig -Service $Service
     }
+    $ConnectionParameters = @{
+        ServiceConfig = $ServiceConfig
+    }
+
+    # Connect to the proper service. Each service checks for the modules its allowed message types need.
+    $Registration = Get-ScriptMessageServiceRegistration -Service $Service
+    & $Registration.ConnectFunction @ConnectionParameters
     
     # Return the connection information, if requested.
     if ($ReturnConnectionInfo)

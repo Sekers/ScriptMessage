@@ -422,6 +422,13 @@ function Disconnect-ScriptMessage_MicrosoftGraph
     return Disconnect-MgGraph
 }
 
+function Get-ScriptMessageContext_MicrosoftGraph
+{
+    # Returns nothing when there is no active connection. The caller adds the properties of whatever comes back
+    # to the context object it returns, so the shape of this is Microsoft Graph's to decide.
+    return Get-MgContext
+}
+
 function Send-ScriptMessage_MicrosoftGraph
 {
     [CmdletBinding()]
@@ -499,21 +506,35 @@ function Send-ScriptMessage_MicrosoftGraph
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
+        [MailType]$MailType = 'Group',
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipeline = $true,
+        ValueFromPipelineByPropertyName = $true)]
         [ChatType]$ChatType,
 
         [Parameter(
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [bool]$IncludeBCCInGroupChat
+        [bool]$IncludeBCCInGroupChat,
+
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipelineByPropertyName = $true)]
+        [pscustomobject]$ServiceConfig
     )
 
     # Set the Service ID.
-    # Keep this as a STRING and not the ENUM type since it's returned to the caller (functions will convert to [MessagingService] type as needed). 
+    # Keep this as a STRING and not the ENUM type since it's returned to the caller (functions will convert to [MessagingService] type as needed).
     [string]$ServiceId = 'MicrosoftGraph'
 
-    # Get the Service Config.
-    $ServiceConfig = Get-ScriptMessageConfig -Service $ServiceId
+    # Get the Service Config, unless the caller already read it and passed this service's section.
+    if (-not $PSBoundParameters.ContainsKey('ServiceConfig'))
+    {
+        $ServiceConfig = Get-ScriptMessageConfig -Service $ServiceId
+    }
 
     # Send the message on each supported service specified.
     foreach ($typeItem in $Type)
@@ -577,9 +598,70 @@ function Send-ScriptMessage_MicrosoftGraph
                         {
                             $SenderId = $Message.From.emailAddress.Address # Note: This is correct as 'xxxx.Address' (not 'AddressObj'). It is converted Microsoft's to IMicrosoftGraphRecipient.
                         }
-            
+
                         # Send Email.
-                        $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
+                        switch ($MailType)
+                        {
+                            Group
+                            {
+                                $SendEmailMessageResult = Send-MgUserMail -UserId $SenderId -BodyParameter $EmailParams -PassThru
+                            }
+                            OneOnOne
+                            {
+                                # Each recipient gets a message with only them in To, so nobody sees who else was sent
+                                # one. An address listed more than once, even across To, CC, and BCC, gets one message;
+                                # hashtable keys compare without case, as email addresses do.
+                                $IndividualRecipients = [System.Collections.Generic.List[Object]]::new()
+                                $SeenAddresses = @{}
+                                foreach ($recipient in @($Message.To) + @($Message.CC) + @($Message.BCC))
+                                {
+                                    $RecipientAddress = $recipient.EmailAddress.Address
+                                    if ([string]::IsNullOrWhiteSpace($RecipientAddress) -or $SeenAddresses.ContainsKey($RecipientAddress))
+                                    {
+                                        continue
+                                    }
+                                    $SeenAddresses[$RecipientAddress] = $true
+                                    $IndividualRecipients.Add($recipient)
+                                }
+
+                                # One recipient's failure is reported and the rest are still sent, so Status is $true only
+                                # when every message went out. -ErrorAction Stop makes a failure reach the catch whether or
+                                # not the cmdlet reports it as a terminating error.
+                                $SentCount = 0
+                                foreach ($recipient in $IndividualRecipients)
+                                {
+                                    # A new request for each recipient rather than one edited in place, so no two
+                                    # requests share an object.
+                                    $IndividualMessage = [ordered]@{}
+                                    foreach ($field in $EmailParams.Message.Keys)
+                                    {
+                                        $IndividualMessage[$field] = $EmailParams.Message[$field]
+                                    }
+                                    $IndividualMessage['ToRecipients'] = @($recipient)
+                                    $IndividualMessage['CcRecipients'] = $null
+                                    $IndividualMessage['BccRecipients'] = $null
+                                    $IndividualEmailParams = [ordered]@{
+                                        SaveToSentItems = $EmailParams.SaveToSentItems
+                                        Message = $IndividualMessage
+                                    }
+
+                                    try
+                                    {
+                                        $null = Send-MgUserMail -UserId $SenderId -BodyParameter $IndividualEmailParams -PassThru -ErrorAction Stop
+                                        $SentCount++
+                                    }
+                                    catch
+                                    {
+                                        $MgErrorMessages += "Mail not sent to `'$($recipient.EmailAddress.Address)`': $_"
+                                    }
+                                }
+
+                                if ($SentCount -eq $IndividualRecipients.Count)
+                                {
+                                    $SendEmailMessageResult = $true
+                                }
+                            }
+                        }
                     }
                 }
                 catch
@@ -664,7 +746,7 @@ function Send-ScriptMessage_MicrosoftGraph
                 $SendScriptMessageResult = [PSCustomObject]@{
                     MessageService = $ServiceId
                     MessageType    = $typeItem
-                    MailType       = $MailType # TODO: MAILTYPE
+                    MailType       = $MailType
                     Status         = $SendEmailMessageResult # The SDK only returns $true and nothing else (and only that because of the 'PassThru')
                     Error          = $SendScriptMessageResult_Error
                     SentFrom       = $SendScriptMessageResult_SentFrom
@@ -690,6 +772,12 @@ function Send-ScriptMessage_MicrosoftGraph
                         if ($ServiceConfig.MgPermissionType -eq 'Application')
                         {
                             $NewMessage = "Chat not sent. Microsoft Graph does not support sending Chat messages using Application permissions. Application permissions are only supported for migration into a Teams Channel."
+                            Write-Warning -Message $NewMessage
+                            $MgWarningMessages += "$NewMessage"
+                        }
+                        elseif ($null -eq $ChatType)
+                        {
+                            $NewMessage = "Chat not sent. No chat type is set. Add the 'ChatType' setting to the '$ServiceId' section of the configuration file, or use the 'ChatType' parameter."
                             Write-Warning -Message $NewMessage
                             $MgWarningMessages += "$NewMessage"
                         }
@@ -1039,4 +1127,18 @@ function Send-ScriptMessage_MicrosoftGraph
             }
         }
     }
+
+    # Disconnect from the Microsoft Graph API, if enabled in the configuration file. The setting is an opt-in flag,
+    # on only when it equals $true; keep it on the left, because a truthiness test reads the text "false" as $true.
+    if ($ServiceConfig.MgDisconnectWhenDone -eq $true)
+    {
+        $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
+    }
 }
+
+# Announce this service to the module. Keep this at the bottom of the file, after the functions it names.
+Register-ScriptMessageService -Name 'MicrosoftGraph' `
+    -ConnectFunction    'Connect-ScriptMessage_MicrosoftGraph' `
+    -DisconnectFunction 'Disconnect-ScriptMessage_MicrosoftGraph' `
+    -SendFunction       'Send-ScriptMessage_MicrosoftGraph' `
+    -GetContextFunction 'Get-ScriptMessageContext_MicrosoftGraph'

@@ -58,19 +58,17 @@ function Get-ScriptMessageContext
             $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
         }
 
-        # Retrieve connection information.
-        switch ($Service)
+        # Ask the service for its own connection information.
+        $Registration = Get-ScriptMessageServiceRegistration -Service $Service
+        $ServiceConnectionInfo = & $Registration.GetContextFunction
+
+        # Add in whatever the service returned. A service with no active connection returns nothing, which
+        # leaves the context object holding only the common information above.
+        if (-not [string]::IsNullOrEmpty($ServiceConnectionInfo))
         {
-            MicrosoftGraph {
-                $MgContext = Get-MgContext
-                if ([string]::IsNullOrEmpty($MgContext))
-                {
-                    break # Terminate the switch statement.
-                }
-                foreach ($infoItem in $($MgContext.PSObject.Properties))
-                {
-                    $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
-                }
+            foreach ($infoItem in $($ServiceConnectionInfo.PSObject.Properties))
+            {
+                $ScriptMessageContext | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
             }
         }
 

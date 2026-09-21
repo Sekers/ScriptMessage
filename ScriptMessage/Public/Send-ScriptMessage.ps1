@@ -49,8 +49,11 @@ function Send-ScriptMessage
     .PARAMETER SenderId
     Specify the account used to send the message request. This might be different than the 'From' parameter in the case of "Send As', "Send on Behalf", delegated mailboxes, etc.
     If not specified, defaults to the address inside of the 'From' parameter.
-    .PARAMETER MailType # TODO: Implement OneOnOne emailing.
+    .PARAMETER MailType
     Override the default 'MailType' specified in the configuration file for the messaging service being used. Options are 'OneOnOne' or 'Group'.
+    'Group' sends one message to all of the To, CC, and BCC recipients. 'OneOnOne' sends each recipient a separate message with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once, even across To, CC, and BCC, receives one message.
+    Each message counts separately against the messaging service's sending limits.
+    If neither this parameter nor the configuration file sets a mail type, 'Group' is used.
     .PARAMETER ChatType
     Override the default 'ChatType' specified in the configuration file for the messaging service being used. Options are 'OneOnOne' or 'Group'.
     .PARAMETER IncludeBCCInGroupChat
@@ -58,8 +61,8 @@ function Send-ScriptMessage
 
     .EXAMPLE 
     $MessageArguments = @{
-        From = 'jdoe@domain.com'
-        To = 'bmayes@domain.com'
+        From = 'jdoe@example.com'
+        To = 'bmayes@example.com'
         CC = @()
         Subject = "Test Message"
         Body = @{
@@ -70,9 +73,9 @@ function Send-ScriptMessage
     Send-ScriptMessage -Service MicrosoftGraph -Type 'Mail' @MessageArguments
     .EXAMPLE 
     $MessageArguments = @{
-        From = 'jdoe@domain.com'
-        To = @('bmayes@domain.com')
-        CC = @( "hcoonly@domain.com", "plittle@domain.com")
+        From = 'jdoe@example.com'
+        To = @('bmayes@example.com')
+        CC = @( "hcoonly@example.com", "plittle@example.com")
         Subject = "Test Message"
         Body = @{
             Content = "This is a test message.`n`nThank you!"
@@ -84,14 +87,14 @@ function Send-ScriptMessage
     $MessageArguments = @{
         From = @{
             Name = 'John Doe'
-            Address = 'jdoe@domain.com'
+            Address = 'jdoe@example.com'
         }
         ReplyTo= @{
             Name = "Lisa Maloney"
-            Address = "lmaloney@domain.com"
+            Address = "lmaloney@example.com"
         }
-        To = @('bmayes@domain.com')
-        CC = @( "hcoonly@domain.com", "plittle@domain.com")
+        To = @('bmayes@example.com')
+        CC = @( "hcoonly@example.com", "plittle@example.com")
         SaveToSentItems = $true
         Subject = "Test Message"
         Body = @{
@@ -99,7 +102,7 @@ function Send-ScriptMessage
             Content = "This is a test message.`n`nThank you!"
         }
         Attachment = @('C:\StuffToSend\', 'C:\Documents\AnotherFile.pdf')
-        SenderId = 'senderaccount@domain.com'
+        SenderId = 'senderaccount@example.com'
     }
 
     Send-ScriptMessage -Service MicrosoftGraph @MessageArguments
@@ -129,9 +132,9 @@ function Send-ScriptMessage
 
     $MessageArguments = @{
         From = @{
-            Address = 'jdoe@domain.com'
+            Address = 'jdoe@example.com'
         }
-        To = @('bmayes@domain.com')
+        To = @('bmayes@example.com')
         Subject = "Test Message"
         Body = @{
             Content = "This is a test message.`n`nThank you!"
@@ -229,7 +232,6 @@ function Send-ScriptMessage
         ValueFromPipelineByPropertyName = $true)]
         [string]$SenderId,
 
-        # TODO: Implement MailType (similar to ChatType so we can do 1:1 emailing)
         [Parameter(
         Mandatory = $false,
         ValueFromPipeline = $true,
@@ -246,8 +248,7 @@ function Send-ScriptMessage
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [ValidateSet($null, $true, $false)]
-        [Object]$IncludeBCCInGroupChat # Is an object so it can be set to $null
+        [Nullable[bool]]$IncludeBCCInGroupChat # Nullable so it can be set to $null, meaning "use the configured value"
     )
 
     # Set the necessary configuration variables.
@@ -288,52 +289,107 @@ function Send-ScriptMessage
 
     foreach ($serviceTypeObj in $ServiceType) # TODO: Catch errors once we have multiple services so if one fails the other(s) can still be processed.
     {
-        # Set the connection parameters.
-        $ConnectionParameters = @{
-            ServiceConfig = $ScriptMessageConfig.$($serviceTypeObj.Service)
+        # Look the service up first, so an unregistered one stops the call before any other work.
+        $Registration = Get-ScriptMessageServiceRegistration -Service ([string]$serviceTypeObj.Service)
+
+        # Take this service's section out of the configuration read above, using the registered name rather
+        # than the parameter's value: looking a property up by a name held in an array comes back empty.
+        $ServiceConfig = $ScriptMessageConfig.$($Registration.Name)
+        if ($null -eq $ServiceConfig)
+        {
+            throw "The ScriptMessage configuration file has no `'$($Registration.Name)`' section. Add one for that messaging service, or send from a service the file configures."
         }
 
-        # Set default values if not specified by a parameter.
-        if (-not $ChatType)
-        {
-            [ChatType]$ChatType = $ConnectionParameters.ServiceConfig.ChatType
+        # Set the connection parameters.
+        $ConnectionParameters = @{
+            ServiceConfig = $ServiceConfig
         }
-        if (-not $IncludeBCCInGroupChat)
+
+        # Set default values for anything the caller did not specify. These test the bound parameters rather than
+        # the values because truthiness cannot tell either parameter apart from an unsupplied one: 'OneOnOne' is
+        # ChatType enum value 0, and $false is a valid 'IncludeBCCInGroupChat' choice. The results go into
+        # separate variables because a parameter keeps its type constraint through later assignments, and
+        # [ChatType] cannot hold the $null of a configuration file that has no 'ChatType' setting.
+        if ($PSBoundParameters.ContainsKey('ChatType'))
         {
-            [bool]$IncludeBCCInGroupChat = $ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat
+            $ResolvedChatType = $ChatType
+        }
+        else
+        {
+            $ResolvedChatType = $ConnectionParameters.ServiceConfig.ChatType
+        }
+
+        # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value", which is also what an
+        # unsupplied [Nullable[bool]] holds. The configured value is an opt-in flag, on only when it equals
+        # $true, so anything else, including quoted text, leaves BCC recipients out. Keep the setting on the
+        # left: a [bool] cast, or $true on the left, reads the text "false" as $true.
+        if ($null -ne $IncludeBCCInGroupChat)
+        {
+            [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat
+        }
+        else
+        {
+            [bool]$ResolvedIncludeBCCInGroupChat = ($ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat -eq $true)
+        }
+
+        # 'MailType' is resolved only for a send that includes Mail, so a configuration value that only Mail would
+        # use cannot stop a Chat send. 'Group' applies when neither the parameter nor the configuration file sets
+        # one, including the empty string the configuration template uses for a setting it leaves unset, so a
+        # configuration file without the setting sends one message to every recipient.
+        $ResolvedMailType = $null
+        if ($serviceTypeObj.Type -contains [MessageType]::Mail)
+        {
+            $ConfiguredMailType = $ConnectionParameters.ServiceConfig.MailType
+            if ($PSBoundParameters.ContainsKey('MailType'))
+            {
+                $ResolvedMailType = $MailType
+            }
+            elseif ([string]::IsNullOrWhiteSpace($ConfiguredMailType))
+            {
+                $ResolvedMailType = [MailType]::Group
+            }
+            elseif ($ConfiguredMailType -in [Enum]::GetNames([MailType]))
+            {
+                $ResolvedMailType = [MailType]$ConfiguredMailType
+            }
+            else
+            {
+                throw "The `'MailType`' setting in the ScriptMessage configuration file must be one of: $([Enum]::GetNames([MailType]) -join ', '). Found `'$ConfiguredMailType`'."
+            }
         }
 
         # Connect to the messaging service, if necessary (e.g., API service).
-        Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ErrorAction Stop
+        Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ServiceConfig $ServiceConfig -ErrorAction Stop
 
-        switch ($($serviceTypeObj.Service))
-        {
-            'MicrosoftGraph'   {
-                $SendMessageParameters = [ordered]@{
-                    From = $From
-                    ReplyTo = $ReplyTo
-                    To = $To
-                    CC = $CC
-                    BCC = $BCC
-                    SaveToSentItems = $SaveToSentItems
-                    Subject = $Subject
-                    Body = $Body
-                    Attachment = $Attachment
-                    SenderId = $SenderId
-                    Type = $serviceTypeObj.Type
-                    ChatType = $ChatType
-                    IncludeBCCInGroupChat = $IncludeBCCInGroupChat
-                }
-
-                Send-ScriptMessage_MicrosoftGraph @SendMessageParameters
-
-                # Disconnect from Microsoft Graph API, if enabled in config.
-                if ($ConnectionParameters.ServiceConfig.MgDisconnectWhenDone)
-                {
-                    $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
-                }
-            }
-            Default {throw "Invalid `'Service`' value."}
+        $SendMessageParameters = [ordered]@{
+            From = $From
+            ReplyTo = $ReplyTo
+            To = $To
+            CC = $CC
+            BCC = $BCC
+            SaveToSentItems = $SaveToSentItems
+            Subject = $Subject
+            Body = $Body
+            Attachment = $Attachment
+            SenderId = $SenderId
+            Type = $serviceTypeObj.Type
+            IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
+            ServiceConfig = $ServiceConfig
         }
+
+        # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a setting
+        # it leaves unset, so pass it only when there is a real value. A Mail-only send does not need one, and
+        # the service reports a Chat message that has none.
+        if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
+        {
+            $SendMessageParameters['ChatType'] = $ResolvedChatType
+        }
+
+        if ($null -ne $ResolvedMailType)
+        {
+            $SendMessageParameters['MailType'] = $ResolvedMailType
+        }
+
+        & $Registration.SendFunction @SendMessageParameters
     }
 }

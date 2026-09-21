@@ -39,8 +39,11 @@ passed". `$PSBoundParameters.ContainsKey()` is the test that tells them apart. A
 three states (unset, true, false) should be `[Nullable[bool]]`.
 
 **From source:** `Send-ScriptMessage` fills in `ChatType` and `IncludeBCCInGroupChat` from the configuration
-file using exactly this `-not` test, which is why an explicit `-ChatType OneOnOne` or
-`-IncludeBCCInGroupChat $false` is replaced by the configuration file's value.
+file when the caller did not supply them. The `-not` test would drop an explicit `-ChatType OneOnOne` or
+`-IncludeBCCInGroupChat $false` in favor of the configuration file's value, so `ChatType` tests
+`$PSBoundParameters.ContainsKey()` and `IncludeBCCInGroupChat`, declared `[Nullable[bool]]` as the last line
+above recommends, tests `$null -ne`. Section 10 covers why the resolved values go into separate variables
+rather than back into the parameters, and why that declaration is what rejects a string.
 
 ## 2. Measured: a `[PSCustomObject]` constraint on a variable does not convert a hashtable
 
@@ -176,12 +179,12 @@ opens the file with .NET, so a configuration file path containing brackets works
 ## 9. Measured: a `PSCustomObject` in a one-item array converts to an empty string
 
 Measured on **2026-09-16** with the same editions, in a standalone script with `$OFS` unset. With
-`$Obj = [pscustomobject]@{ Name = 'A'; AddressObj = 'a@domain.com' }`, `$One = @($Obj)`, and
+`$Obj = [pscustomobject]@{ Name = 'A'; AddressObj = 'a@example.com' }`, `$One = @($Obj)`, and
 `$Two = @($Obj, $Obj)`:
 
 | Expression | Result |
 | --- | --- |
-| `[string]$Obj` or `"$Obj"` | `@{Name=A; AddressObj=a@domain.com}` |
+| `[string]$Obj` or `"$Obj"` | `@{Name=A; AddressObj=a@example.com}` |
 | `$Obj.ToString()` | an empty string |
 | `[string]$One` or `"$One"` | an empty string |
 | `[string]$Two` | a single space |
@@ -190,7 +193,7 @@ Measured on **2026-09-16** with the same editions, in a standalone script with `
 | `[string]::IsNullOrEmpty($Two)` | `False` (`IsNullOrWhiteSpace` gives `True`) |
 | `[string]::IsNullOrEmpty($One.AddressObj)` | `False` |
 | `[string]@(@{ Name = 'x' })`, a hashtable in a one-item array | `System.Collections.Hashtable`, so `IsNullOrEmpty` gives `False` |
-| `[string]@('a@domain.com')` | `a@domain.com` |
+| `[string]@('a@example.com')` | `a@example.com` |
 | `[string]::IsNullOrEmpty(@())` | `True` |
 
 So `[string]::IsNullOrEmpty` cannot tell an empty array from one holding a single `PSCustomObject`, and for an
@@ -235,3 +238,86 @@ result in this section where the editions differ.
   tested. Truthiness tests such as `if ($One)` or `-not $One`, and other .NET methods taking a string argument,
   were not.
 - A script that sets `$OFS` was not tested.
+
+## 10. Measured: an enum cannot hold `$null`, and a parameter keeps its type constraint
+
+Measured on **2026-09-17**, same machine and editions as the header. Both editions agreed on every row.
+
+With `enum CT { OneOnOne; Group }`:
+
+| Code | Result |
+| --- | --- |
+| `[CT]$x = $null`, fresh variable, inside a function | throws "Cannot convert null to type" |
+| `param([CT]$x)` then `$x = $null` later in the body | throws the same way |
+| `param([CT]$x)` then `$x = 'Group'` later in the body | converts; `$x` is `[CT]` |
+| `Test-Thing -ChatType $null` against a `[CT]` parameter | throws "Cannot process argument transformation" |
+| Splatting `@{ ChatType = $null }` at a `[CT]` parameter | throws the same way |
+| Splatting `@{ B = $null }` at a `[bool]` parameter | throws `Cannot convert value "" to type "System.Boolean"` |
+| `[bool]$x = $null`, fresh variable, inside a function | converts; `$x` is `False` |
+| `[bool]$x = $true` then `$x = $null` later, inside a function | converts; `$x` is `False` |
+| Splatting `@{ ChatType = '' }` at a `[CT]` parameter | throws `The identifier name  cannot be processed because it is either too similar or identical to the following enumerator names` |
+| `[string]::IsNullOrWhiteSpace()` given a `[CT]` value | `False`; the enum converts to its member name first |
+| `[bool]` of the string `'false'` | `True`; every non-empty string is truthy |
+| `-b 'false'` at a `[bool]` or `[Nullable[bool]]` parameter | throws: "Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0" |
+| `-b 'false'` at an `[Object]` parameter carrying `[ValidateSet($null, $true, $false)]` | passes validation, and `$b` is still the string `'false'` |
+| `-b 0` at that same `[ValidateSet]` parameter | throws; the set holds `''`, `True` and `False` as strings |
+| `-b 1` at a `[bool]` or `[Nullable[bool]]` parameter | `True` |
+| An unsupplied `[Nullable[bool]]` parameter, and `-b $null` | both `$null` |
+
+Two consequences. A parameter's type constraint is not just an entry gate: it applies to every later assignment
+to that variable in the body, so a parameter cannot be reused as a scratch variable for a value its type
+cannot hold. And an enum has no representation for "no value", so a missing configuration setting cannot be
+carried in an enum-typed variable or passed to an enum-typed parameter; the call has to omit the argument
+instead.
+
+A `[bool]` behaves differently from an enum in the one case that matters: a `[bool]`-constrained variable
+inside a function accepts `$null` and becomes `False`, while a `[bool]` parameter rejects it at binding.
+
+**From source:** `Send-ScriptMessage` resolves `ChatType` and `IncludeBCCInGroupChat` into separate
+`$Resolved...` variables rather than assigning back to the parameters, because a parameter cannot be reassigned
+a value its type cannot hold. It adds `ChatType` to the `Send-ScriptMessage_MicrosoftGraph` splat only when
+`[string]::IsNullOrWhiteSpace` says there is a real value, because neither `$null` nor `''` can bind to the
+service's `[ChatType]` parameter, and `Templates/config_scriptmessage.json` writes a setting it leaves unset as
+an empty string. `Send-ScriptMessage_MicrosoftGraph` then reports a Chat message that arrived without one.
+`IncludeBCCInGroupChat` needs no such guard: it is resolved through a `[bool]`-constrained variable inside a
+function, so a configuration file with no `IncludeBCCInGroupChat` setting yields `False`.
+
+The parameter binder is stricter than a cast or a validation set. A `[bool]` or `[Nullable[bool]]` parameter
+refuses a string, while `[Object]` with `[ValidateSet($null, $true, $false)]` accepts `'false'` and leaves it a
+string for a later `[bool]` cast to turn into `True`. A configuration file value never passes through a binder
+at all.
+
+Comparing with `-eq` depends on which side the value is on. Measured on **2026-09-21**, same editions, both
+agreeing:
+
+| Value | `$value -eq $true` | `$true -eq $value` |
+| --- | --- | --- |
+| `'true'` | `True` | `True` |
+| `'false'` | `False` | `True` |
+| `'yes'` | `False` | `True` |
+| `$null` | `False` | `False` |
+| `$false` / `$true` | `False` / `True` | `False` / `True` |
+
+With the string on the left, `-eq` converts `$true` to the text `True` and compares without regard to case, so
+only text reading "true" matches. With `$true` on the left, it converts the string to `[bool]`, which makes every
+non-empty string `True`, exactly as a cast does.
+
+**From source:** `Send-ScriptMessage` declares `-IncludeBCCInGroupChat` as `[Nullable[bool]]`, which keeps the
+three states it needs (unset, true, false) and makes the binder reject a string. Every boolean configuration
+setting is read as an opt-in flag, `<setting> -eq $true` with the setting on the left: `IncludeBCCInGroupChat` in
+`Send-ScriptMessage`, `MgDisconnectWhenDone` in `Send-ScriptMessage_MicrosoftGraph`, and
+`MgDelegatedPermission_RequestChatReadPermission` and `MgDelegatedPermission_RequestFilesReadWritePermission` in
+`Connect-ScriptMessage_MicrosoftGraph`. A missing setting, `false`, quoted text, and a typo all read as off, which
+is the safe state of all four. Unquoted JSON `true` and `false` arrive as real booleans.
+
+### What this does not establish
+
+- Why the same `[bool]` assignment that converts `$null` inside a function throws at script scope. Both
+  editions do it, and the module is unaffected because all of its code lives in functions, but the cause was
+  not traced.
+- `[Nullable[bool]]` and `[CT?]` parameters were not tested here; section 1 covers an unassigned
+  `[Nullable[bool]]` variable only.
+- Only `$null` was tested as the rejected value. Empty strings and other unconvertible values were not.
+- Numbers were measured only with the value on the left, the same day: `1 -eq $true` is `True` and
+  `0 -eq $true` is `False`. A JSON array or object in a boolean setting was not tested; an array on the left of
+  `-eq` filters rather than compares.

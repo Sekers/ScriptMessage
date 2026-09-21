@@ -24,12 +24,14 @@ Thank you for helping improve ScriptMessage. This guide covers the everyday work
 ## Rules
 
 - **Never commit a real configuration file, secret, or certificate.** Never name a real organization, tenant, or
-  email domain in code, tests, examples, or commit messages; use `domain.com` addresses instead.
+  email domain in code, tests, examples, or commit messages; use an RFC 2606 reserved domain instead, such as
+  `example.com`. Those can never be registered, so a placeholder that gets run unedited reaches nobody.
 - **The automated tests never connect to a tenant.** If a change needs a live Microsoft Graph test, run it in
   your own test tenant and describe what you tested in the pull request.
 - **Text files are UTF-8 with LF line endings and no byte order mark, and PowerShell files contain only ASCII.**
   Windows PowerShell 5.1 misreads non-ASCII characters in PowerShell files saved without a byte order mark.
-  `.gitattributes` handles line endings, and [AGENTS.md](./AGENTS.md) explains the rules and how to check them.
+  `.gitattributes` handles line endings, the test suite checks all three rules, and [AGENTS.md](./AGENTS.md)
+  explains them.
 - **Rebase only your own branch, and only before it merges.** Never force-push `develop` or `main`.
 
 AI assistants working in this repository follow [AGENTS.md](./AGENTS.md), which also holds the detailed rules

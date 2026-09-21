@@ -38,10 +38,13 @@ function Disconnect-ScriptMessage
     )
 
     # Disconnect from the proper service.
-    $ServiceDisconnectReturnInfo = switch ($Service)
-    {
-        MicrosoftGraph {Disconnect-ScriptMessage_MicrosoftGraph}
-    }
+    $Registration = Get-ScriptMessageServiceRegistration -Service $Service
+    $ServiceDisconnectReturnInfo = & $Registration.DisconnectFunction
+
+    # Drop this service's cached context. 'Get-ScriptMessageContext -ReturnCachedContext' reads that cache, so
+    # leaving an entry behind would keep reporting the connection this call just ended. Removing a name the
+    # cache does not hold does nothing, which is the case when nothing has asked for the context yet.
+    $ScriptMessage_Global_CachedServiceContext.PSObject.Properties.Remove([string]$Service)
 
     # Return the disconnection information, if requested.
     if ($ReturnConnectionInfo)
@@ -58,18 +61,13 @@ function Disconnect-ScriptMessage
             $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
         }
 
-        # Add in disconnection information.
-        switch ($Service)
+        # Add in whatever the service returned. A service that reports nothing back leaves the object holding
+        # only the common information above.
+        if (-not [string]::IsNullOrEmpty($ServiceDisconnectReturnInfo))
         {
-            MicrosoftGraph {
-                if ([string]::IsNullOrEmpty($ServiceDisconnectReturnInfo))
-                {
-                    break # Terminate the switch statement.
-                }
-                foreach ($infoItem in $($ServiceDisconnectReturnInfo.PSObject.Properties))
-                {
-                    $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
-                }
+            foreach ($infoItem in $($ServiceDisconnectReturnInfo.PSObject.Properties))
+            {
+                $ScriptMessageDisconnectReturnInfo | Add-Member -MemberType NoteProperty -Name "$($infoItem.Name)" -Value $($infoItem.Value)
             }
         }
     }
