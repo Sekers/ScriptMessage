@@ -45,7 +45,7 @@ function Get-ScriptMessageConfig
         throw "`'`$ScriptMessage_Global_ConfigFilePath`' is not specified. Don't forget to first use the `'Set-ScriptMessageConfigFilePath`' cmdlet!"
     }
 
-    # Get Config and Secrets
+    # Read the configuration file.
     try
     {
         # .NET resolves a relative path against the process directory, not PowerShell's current location.
@@ -67,19 +67,36 @@ function Get-ScriptMessageConfig
         {
             $Reader.Dispose()
         }
-
-        $ScriptMessageConfig = $ConfigText | ConvertFrom-Json
-        if (-not ($null -eq $Service))
-        {
-            return $ScriptMessageConfig.$Service
-        }
-        else
-        {
-            return $ScriptMessageConfig
-        } 
+    }
+    catch [System.IO.FileNotFoundException], [System.IO.DirectoryNotFoundException], [System.Management.Automation.DriveNotFoundException]
+    {
+        throw "Can't find the JSON configuration file. $($_.Exception.GetBaseException().Message)"
     }
     catch
     {
-        throw "Can't find the JSON configuration file. Use 'Set-ScriptMessageConfigFilePath' to create one."
+        throw "Can't read the JSON configuration file. $($_.Exception.GetBaseException().Message)"
+    }
+
+    # Parse it.
+    try
+    {
+        $ScriptMessageConfig = $ConfigText | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch
+    {
+        # Windows PowerShell 5.1 ends many of these messages with the entire text it was parsing, which here is the
+        # configuration file and its secrets, so keep only the reason in front of it. See section 11 of
+        # Research_Notes/PowerShell-Language-Behavior.md.
+        $Reason = $_.Exception.Message -replace '(?s) \(\d+\): .*$', ''
+        throw "The configuration file '$FullPath' is not valid JSON. $Reason"
+    }
+
+    if (-not ($null -eq $Service))
+    {
+        return $ScriptMessageConfig.$Service
+    }
+    else
+    {
+        return $ScriptMessageConfig
     }
 }

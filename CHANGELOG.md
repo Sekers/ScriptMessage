@@ -17,6 +17,7 @@
 - Minor: `Send-ScriptMessage` now reads every true/false setting in the configuration file the same way, so a value other than `true` no longer turns a setting on.
 - Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
+- Minor: `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` now say why a configuration file could not be used.
 
 ---
 ## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16

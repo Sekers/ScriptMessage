@@ -104,3 +104,23 @@ Describe 'Get-ScriptMessageConfig paths' {
         { Get-ScriptMessageConfig -Path (Join-Path $TestDrive 'missing.json') } | Should -Throw -ExpectedMessage "Can't find the JSON configuration file*"
     }
 }
+
+Describe 'Get-ScriptMessageConfig errors' {
+    It 'reports a folder that does not exist' {
+        { Get-ScriptMessageConfig -Path (Join-Path $TestDrive 'No Such Folder\config.json') } |
+            Should -Throw -ExpectedMessage "Can't find the JSON configuration file*No Such Folder*"
+    }
+
+    It 'reports a path it cannot read as a file' {
+        { Get-ScriptMessageConfig -Path $TestDrive } | Should -Throw -ExpectedMessage "Can't read the JSON configuration file*"
+    }
+
+    # Windows PowerShell 5.1 ends its message for this mistake with the whole file, secrets included.
+    It 'reports a file that is not valid JSON, without repeating its contents' {
+        $Path = Join-Path $TestDrive 'invalid.json'
+        [System.IO.File]::WriteAllText($Path, '{ "MicrosoftGraph": { "MgClientID" "not-a-real-secret" } }')
+
+        $ErrorRecord = { Get-ScriptMessageConfig -Path $Path } | Should -Throw -ExpectedMessage "The configuration file '*invalid.json' is not valid JSON.*" -PassThru
+        $ErrorRecord.Exception.Message | Should -Not -BeLike '*not-a-real-secret*'
+    }
+}
