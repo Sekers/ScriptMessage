@@ -1138,7 +1138,6 @@ function Send-ScriptMessage_MicrosoftGraph
 
 # Announce this service to the module. Keep this at the bottom of the file, after the functions it names.
 Register-ScriptMessageService -Name 'MicrosoftGraph' `
-    -SupportedSetting   'MailType', 'ChatType', 'IncludeBCCInGroupChat' `
     -ConnectFunction    'Connect-ScriptMessage_MicrosoftGraph' `
     -DisconnectFunction 'Disconnect-ScriptMessage_MicrosoftGraph' `
     -SendFunction       'Send-ScriptMessage_MicrosoftGraph' `

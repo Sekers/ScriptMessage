@@ -11,14 +11,6 @@ function Register-ScriptMessageService
         [Parameter(Mandatory = $true)]
         [string]$Name,
 
-        # The generic, unprefixed configuration settings and parameters this service honors. Mandatory so that
-        # every service has to state its answer: a caller who supplies one a service does not honor is told,
-        # rather than having the value dropped without a word. A service's own prefixed settings are its
-        # business and are not listed here.
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyCollection()]
-        [string[]]$SupportedSetting,
-
         [Parameter(Mandatory = $true)]
         [string]$ConnectFunction,
 
@@ -41,7 +33,6 @@ function Register-ScriptMessageService
 
     $script:ScriptMessageServiceTable[$Name] = [PSCustomObject]@{
         Name               = $Name
-        SupportedSetting   = $SupportedSetting
         ConnectFunction    = $ConnectFunction
         DisconnectFunction = $DisconnectFunction
         SendFunction       = $SendFunction

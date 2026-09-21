@@ -209,6 +209,11 @@ $Text = [System.IO.File]::ReadAllText($Path)
   `$ServiceConfig.<Name> -eq $true`, with the setting on the left, so missing, `false`, quoted text, and typos
   all mean off. Never read one with a `[bool]` cast, a truthiness test, or `$true -eq`: each of those reads the
   text `"false"` as true. Name a new boolean setting so that `true` opts in and off is the safe state.
+- **A service that cannot honor a setting or parameter it receives says so in its result and sends what it
+  can.** Add a `Warning` entry to that message's `Error` property, as the Microsoft Graph service does for a
+  chat sent on behalf of someone else, rather than failing the whole call or dropping the value silently.
+  `Send-ScriptMessage` passes every message parameter to every service, so each service's send function must
+  accept all of them.
 
 ## Testing
 
