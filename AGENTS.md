@@ -206,8 +206,8 @@ $Text = [System.IO.File]::ReadAllText($Path)
 - **Comments describe the code as it is now**, never what it used to do or what a fix changed. Change history
   belongs in the commit message and the changelog.
 - **A boolean configuration setting is an opt-in flag: on only when it equals `$true`.** Read it as
-  `$ServiceConfig.<Name> -eq $true`, with the setting on the left, so missing, `false`, quoted text, and typos
-  all mean off. Never read one with a `[bool]` cast, a truthiness test, or `$true -eq`: each of those reads the
+  `$ServiceConfig.<Name> -eq $true`, with the setting on the left, so missing, `false`, typos, and any quoted
+  text except `"true"` (in any letter case, which counts as on) all mean off. Never read one with a `[bool]` cast, a truthiness test, or `$true -eq`: each of those reads the
   text `"false"` as true. Name a new boolean setting so that `true` opts in and off is the safe state.
 - **A service that cannot honor a setting or parameter it receives says so in its result and sends what it
   can.** Add a `Warning` entry to that message's `Error` property, as the Microsoft Graph service does for a

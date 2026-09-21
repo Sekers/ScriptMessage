@@ -307,8 +307,9 @@ three states it needs (unset, true, false) and makes the binder reject a string.
 setting is read as an opt-in flag, `<setting> -eq $true` with the setting on the left: `IncludeBCCInGroupChat` in
 `Send-ScriptMessage`, `MgDisconnectWhenDone` in `Send-ScriptMessage_MicrosoftGraph`, and
 `MgDelegatedPermission_RequestChatReadPermission` and `MgDelegatedPermission_RequestFilesReadWritePermission` in
-`Connect-ScriptMessage_MicrosoftGraph`. A missing setting, `false`, quoted text, and a typo all read as off, which
-is the safe state of all four. Unquoted JSON `true` and `false` arrive as real booleans.
+`Connect-ScriptMessage_MicrosoftGraph`. A missing setting, `false`, a typo, and quoted text all read as off, which
+is the safe state of all four settings, except that quoted `"true"` in any letter case reads as on, as the table
+above shows. Unquoted JSON `true` and `false` arrive as real booleans.
 
 ### What this does not establish
 
