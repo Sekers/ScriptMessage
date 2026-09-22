@@ -372,7 +372,10 @@ function Connect-ScriptMessage_MicrosoftGraph
                         throw $NewMessage
                     }
                     
-                    $MgApp_CertificatePath = $ExecutionContext.InvokeCommand.ExpandString($ServiceConfig.MgApp_CertificatePath)
+                    # Expand only environment variables, so the configuration file cannot run code; the rest is used as written.
+                    $MgApp_CertificatePath = $ServiceConfig.MgApp_CertificatePath -replace '\$\{env:([^}]+)\}|\$env:(\w+)', {
+                        [Environment]::GetEnvironmentVariable($_.Groups[1].Value + $_.Groups[2].Value)
+                    }
 
                     # Try accessing private key certificate without password using current process credentials.
                     [X509Certificate]$MgApp_Certificate = $null

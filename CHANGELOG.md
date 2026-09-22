@@ -19,6 +19,10 @@
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
 - Minor: `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` now say why a configuration file could not be used.
 
+### Security
+
+- `MgApp_CertificatePath` ran any PowerShell code written into it, so anyone who could edit the configuration file could run commands as the account sending messages. This affected every configuration file on PowerShell 7.4 and later, whatever authentication it was set up for. Only environment variables written as `$env:NAME` or `${env:NAME}` are expanded now, and the rest of the path is used exactly as written.
+
 ---
 ## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16
 
