@@ -145,8 +145,9 @@ covers when `[Unreleased]` becomes a version and how that version is chosen.
 - Prefix an entry with `Minor:` inside **Fixed** when a user probably never noticed it: help text wording, a
   message, an edge case needing unusual conditions to hit, or a cost the module absorbed itself such as an
   extra Microsoft Graph request. List the `Minor:` entries after the rest of the Fixed entries.
-- Prefix an entry with `BREAKING CHANGE:` when it can break an existing script or configuration file, and say
-  what the user has to change. Such an entry usually belongs under **Changed** or **Removed**.
+- Prefix an entry with `BREAKING CHANGE:` when it breaks the public contract as [RELEASING.md](./RELEASING.md)
+  defines it, so an existing script or configuration file can stop working, and say what the user has to
+  change. Such an entry usually belongs under **Changed** or **Removed**.
 - A new public function goes under **Added** and reads `- New Function: <Function-Name> > <what it does>`.
 - **No em dashes.** Use a semicolon, colon, parentheses, comma, or a new sentence. This applies to every file
   in the repo, not just the changelog.
