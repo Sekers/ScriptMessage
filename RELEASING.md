@@ -200,6 +200,8 @@ enforceable:
 - [ ] The tag is annotated, has no `v` prefix, and is on the merge commit.
 - [ ] Every job in the Release workflow passed.
 - [ ] The version appears on the PowerShell Gallery, and the GitHub release has the right notes and package.
+- [ ] The wiki (`Sekers/ScriptMessage.wiki`) describes this release, and its update was pushed after the Release
+      workflow passed.
 - [ ] `main` was merged back into `develop` with a merge commit.
 - [ ] Anything that needs a live Microsoft Graph test was tested separately in a test tenant. The automated tests
       never connect to a tenant.

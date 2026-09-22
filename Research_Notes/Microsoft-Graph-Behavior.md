@@ -6,7 +6,8 @@ persists, and what disconnecting after a send changes. Each claim is tied to the
 
 **Only section 7 was measured against a tenant**, on **2026-09-16**; that section gives the environment.
 Documentation was read on **2026-09-15** from the pages listed under Sources, and the SDK source on
-**2026-09-16**. Microsoft revises these pages, so re-read a page before relying on a limit or a permission.
+**2026-09-16**, except for section 8, whose pages and SDK source were read on **2026-09-21**. Microsoft revises
+these pages, so re-read a page before relying on a limit or a permission.
 
 **Claims are labelled with their evidence.**
 
@@ -15,8 +16,8 @@ Documentation was read on **2026-09-15** from the pages listed under Sources, an
 - **From source** means read out of `ScriptMessage/Services/MicrosoftGraph.ps1` or
   `ScriptMessage/Public/Send-ScriptMessage.ps1`; it describes what this module does, which is not the same as
   what Graph does.
-- **From SDK source** means read out of the Microsoft Graph PowerShell SDK source at the release tag listed under
-  Sources; a later SDK release can behave differently.
+- **From SDK source** means read out of the Microsoft Graph PowerShell SDK source at the release tag or branch
+  listed under Sources; a later SDK release can behave differently.
 - **Inference** means reasoned from documentation or source without a test.
 - **Unverified** means nobody has tested it or found it documented. Several of these are assumptions the module
   makes today.
@@ -36,6 +37,19 @@ Documentation was read on **2026-09-15** from the pages listed under Sources, an
 | [Upload small files](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0) | 2026-08-11 |
 | [Use Microsoft Graph PowerShell authentication commands](https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands?view=graph-powershell-1.0) | 2026-05-06 |
 | [Microsoft Graph PowerShell SDK authentication source, tag `2.25.0`](https://github.com/microsoftgraph/msgraph-sdk-powershell/tree/2.25.0/src/Authentication) | none (release tag) |
+| [Connect-MgGraph](https://learn.microsoft.com/en-us/powershell/module/microsoft.graph.authentication/connect-mggraph?view=graph-powershell-1.0) | 2026-03-02 |
+| [Install the Microsoft Graph PowerShell SDK](https://learn.microsoft.com/en-us/powershell/microsoftgraph/installation?view=graph-powershell-1.0) | 2025-07-23 |
+| [Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference) | 2026-09-15 |
+| [Scopes and permissions in the Microsoft identity platform](https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc) | 2026-06-25 |
+| [Configure how users consent to applications](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-user-consent) | 2026-08-04 |
+| [How to register an app in Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) | 2026-06-15 |
+| [How to add a redirect URI to your application](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-redirect-uri) | 2026-06-15 |
+| [Add and manage app credentials in Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials) | 2026-06-15 |
+| [Microsoft Entra authentication and authorization error codes](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes) | 2026-06-15 |
+| [Role Based Access Control for Applications in Exchange Online](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac) | 2026-08-21 |
+| [ConvertFrom-SecureString](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/convertfrom-securestring) | 2026-08-10 |
+| [about_Signing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing) | 2026-09-21 |
+| [Microsoft Graph PowerShell SDK authentication source, branch `main`](https://github.com/microsoftgraph/msgraph-sdk-powershell/tree/main/src/Authentication) | none (branch, read 2026-09-21) |
 
 ## 1. From documentation: permissions for each operation the module performs
 
@@ -234,3 +248,71 @@ authentication type gets `Process` scope.
 - **Unverified:** runspaces sharing a process, such as `ForEach-Object -Parallel` or thread jobs. The static
   session suggests they share one connection; this was not tested.
 - Nothing in this section was measured with delegated permissions or with an SDK release other than 2.25.0.
+
+## 8. From documentation: app registration, consent, credentials, and limiting mailbox access
+
+These pages back the setup steps on the wiki's Microsoft 365 page and several setting entries on its Home page.
+Nothing in this section was tested against a tenant.
+
+**From documentation:**
+
+- **Redirect URIs for delegated sign-in with your own app.** The authentication commands page's steps for a
+  custom application register `http://localhost` as a **Public client/native** redirect URI, and add: "An
+  additional Redirect URI is required for Windows Authentication Manager (WAM) broker-based sign-in", entered
+  under **Mobile and desktop applications** as `ms-appx-web://Microsoft.AAD.BrokerPlugin/<YOUR_APP_CLIENT_ID>`.
+  The same page turns WAM off with `Set-MgGraphOption -DisableLoginByWAM $true`. The error code page describes
+  `AADSTS50011` as "The reply address is missing, misconfigured, or doesn't match reply addresses configured for
+  the app."
+- **Admin consent.** The permissions reference lists admin consent as not required for the delegated `Mail.Send`,
+  `Chat.Create`, `ChatMessage.Send`, `Chat.Read`, `Chat.ReadBasic`, and `Files.ReadWrite`, and as required for the
+  application `Mail.Send`. The user consent page: "By default, all users are allowed to consent to applications
+  for permissions that don't require administrator consent", and "Applications that require users to be assigned
+  to the application must have their permissions consented by an administrator".
+- **Certificates and client secrets.** The credentials page: "Microsoft recommends that you use a certificate
+  instead of a client secret before moving the application to a production environment"; an uploaded certificate
+  must be a `.cer`, `.pem`, or `.crt` file; "Client secret lifetime is limited to two years (24 months) or less",
+  and "Microsoft recommends that you set an expiration value of less than 12 months"; the secret's **Value** "is
+  *never displayed again* after you leave this page".
+- **Certificate stores.** The authentication commands page says `-CertificateThumbprint` and `-CertificateName`
+  load the certificate "from either `Cert:\CurrentUser\My\` or `Cert:\LocalMachine\My\`". The `Connect-MgGraph`
+  reference page says instead that the certificate "will be retrieved from the current user's certificate store".
+- **Limiting mailbox access.** The RBAC for Applications page says the feature "replaces Application Access
+  Policies", and that "The permissions assigned using Application RBAC act in addition to grants you make in
+  Microsoft Entra ID", so an unscoped `Mail.Send` grant in Microsoft Entra has to be removed before a scope limits
+  anything. Assigning the roles needs the Organization Management role group, or the Exchange Administrator role
+  in Microsoft Entra ID. Changes "are subject to cache maintenance that varies between 30 minutes and 2 hours".
+  `New-ServicePrincipal` takes the IDs from the Enterprise applications page, not from App registrations.
+- **Encrypted standard strings.** The `ConvertFrom-SecureString` page: without a key, "the Windows Data
+  Protection API (DPAPI) is used", and "The contents of a SecureString aren't encrypted on non-Windows systems".
+- **Graph sub-modules.** The installation page: `Microsoft.Graph.Authentication` "is installed by default when you
+  opt to install the sub modules individually"; installing in one version of PowerShell "doesn't install it for
+  the other"; Windows PowerShell needs .NET Framework 4.7.2 or later.
+- **Blocked downloads.** `about_Signing`: under the RemoteSigned policy, a downloaded unsigned script fails with
+  `The file <file-name> cannot be loaded. The file <file-name> is not digitally signed.`, and `Unblock-File` lets
+  it run.
+
+**From SDK source:** at tag `2.25.0` and on `main`, the certificate lookup by thumbprint and by subject name
+searches `StoreLocation.CurrentUser` and then `StoreLocation.LocalMachine`. That agrees with the authentication
+commands page, not the reference page. At `2.25.0`, WAM is used only when `EnableWAMForMSGraph` is set and the
+platform is Windows; on `main`, when the authentication context's `WamEnabled` is true on Windows.
+
+**From source:** `Connect-ScriptMessage_MicrosoftGraph` calls `Connect-MgGraph` with `-ClientId` and `-TenantId`
+for delegated sign-in, so the app registration's redirect URIs apply to it; with `-CertificateThumbprint`,
+`-CertificateName`, or `-Certificate` for the three certificate options; and with a credential built from
+`MgApp_EncryptedSecret` for `ClientSecret`. It decrypts `MgApp_EncryptedSecret` and
+`MgApp_EncryptedCertificatePassword` with `ConvertTo-SecureString`, so both have to be encrypted by the account
+that runs the script, on the computer that runs it.
+
+### What this does not establish
+
+- **Unverified:** which SDK release made WAM the default on Windows, and whether a delegated sign-in without the
+  broker redirect URI fails or falls back to the browser.
+- **Unverified:** that `openid`, `profile`, `email`, and `offline_access` need no admin consent. The permissions
+  reference did not return them. The scopes page describes them as standard OpenID Connect scopes shown on the
+  user consent page, so treating them as user-consentable is **Inference**.
+- **Unverified:** that an `Application Mail.Send` assignment in RBAC for Applications works with the
+  `Send-MgUserMail` call the module makes. The page lists Microsoft Graph as a supported protocol for that role;
+  no send was tested.
+- **Unverified:** the message `ConvertTo-SecureString` gives for a string encrypted by another account or on
+  another computer. The wiki's troubleshooting entry uses "Key not valid for use in specified state.", the
+  Windows message usually reported for it; it was not reproduced here.
