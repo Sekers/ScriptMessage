@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 ##############################
 
 # Import ScriptMessage Module
-Import-Module Script-Message
+Import-Module ScriptMessage
 
 # Set ScriptMessage MessagingConfiguration Path
 Set-ScriptMessageConfigFilePath -Path "$PSScriptRoot\Config\config_scriptmessage.json"

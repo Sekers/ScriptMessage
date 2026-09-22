@@ -321,8 +321,9 @@ function Send-ScriptMessage
 
         # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value", which is also what an
         # unsupplied [Nullable[bool]] holds. The configured value is an opt-in flag, on only when it equals
-        # $true, so anything else, including quoted text, leaves BCC recipients out. Keep the setting on the
-        # left: a [bool] cast, or $true on the left, reads the text "false" as $true.
+        # $true. Text equals $true only when it reads "true" in any letter case, so anything else, including
+        # the text "false", leaves BCC recipients out. Keep the setting on the left: a [bool] cast, or $true
+        # on the left, reads the text "false" as $true.
         if ($null -ne $IncludeBCCInGroupChat)
         {
             [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat

@@ -307,8 +307,9 @@ three states it needs (unset, true, false) and makes the binder reject a string.
 setting is read as an opt-in flag, `<setting> -eq $true` with the setting on the left: `IncludeBCCInGroupChat` in
 `Send-ScriptMessage`, `MgDisconnectWhenDone` in `Send-ScriptMessage_MicrosoftGraph`, and
 `MgDelegatedPermission_RequestChatReadPermission` and `MgDelegatedPermission_RequestFilesReadWritePermission` in
-`Connect-ScriptMessage_MicrosoftGraph`. A missing setting, `false`, quoted text, and a typo all read as off, which
-is the safe state of all four. Unquoted JSON `true` and `false` arrive as real booleans.
+`Connect-ScriptMessage_MicrosoftGraph`. A missing setting, `false`, a typo, and quoted text all read as off, which
+is the safe state of all four settings, except that quoted `"true"` in any letter case reads as on, as the table
+above shows. Unquoted JSON `true` and `false` arrive as real booleans.
 
 ### What this does not establish
 
@@ -321,3 +322,53 @@ is the safe state of all four. Unquoted JSON `true` and `false` arrive as real b
 - Numbers were measured only with the value on the left, the same day: `1 -eq $true` is `True` and
   `0 -eq $true` is `False`. A JSON array or object in a boolean setting was not tested; an array on the left of
   `-eq` filters rather than compares.
+
+## 11. Measured: catching file errors, and `ConvertFrom-Json` messages that repeat their input
+
+Measured on **2026-09-21**, same machine and editions as the header, in a standalone script with the module not
+imported. The editions differ on `ConvertFrom-Json`, as the second table shows.
+
+A .NET method called from PowerShell throws its exception wrapped in a `MethodInvocationException`. A typed
+`catch [<type>]` still matches the exception inside, and there `$_.Exception` is that inner exception. A plain
+`catch` receives the wrapper, and `$_.Exception.GetBaseException()` returns the inner one. Each path below went
+through `$PSCmdlet.GetUnresolvedProviderPathFromPSPath()` and then `[System.IO.StreamReader]::new()`:
+
+| Path | Exception | Matched by a typed `catch` for it |
+| --- | --- | --- |
+| a file that does not exist | `System.IO.FileNotFoundException`: "Could not find file '...'" with the full path | yes |
+| a file in a folder that does not exist | `System.IO.DirectoryNotFoundException`: "Could not find a part of the path '...'" | yes |
+| a drive that does not exist, `Q:\missing.json` | `System.Management.Automation.DriveNotFoundException`, from the path resolution | yes |
+| a folder | `System.UnauthorizedAccessException`: "Access to the path '...' is denied." | not tried; a plain `catch` got it |
+
+`ConvertFrom-Json -ErrorAction Stop` throws `System.ArgumentException` in both editions. Windows PowerShell 5.1
+ends many of its messages with a position in parentheses, such as `(45):`, followed by the entire text it was
+given:
+
+| Input | Windows PowerShell 5.1 | PowerShell 7 |
+| --- | --- | --- |
+| a missing colon, `"MgClientID" "client-id"` | `Invalid object passed in, ':' or '}' expected. (45):` then the input | `Invalid character after parsing property name. Expected ':' but got: ". Path 'MgTenantID', line 1, position 44.` |
+| a missing closing `}` | `Invalid object passed in, ':' or '}' expected. (83):` then the input | `Unexpected end when deserializing object. Path 'Secret', line 1, position 83.` |
+| a single backslash, `"C:\Certs\a.pfx"` | `Unrecognized escape sequence. (44):` then the input | `Bad JSON escape sequence: \C. Path 'Path', line 1, position 44.` |
+| a missing closing `]` | `Invalid array passed in, ',' expected. (32):` then the input | no error |
+| `not json` | `Invalid JSON primitive: not.` | `Unexpected character encountered while parsing value: n. Path '', line 0, position 0.` |
+| a missing value, `"Bad": ,`, or a trailing comma | `Invalid JSON primitive: .` | no error |
+| an empty string | no error; the result is `$null` | the same |
+
+Every PowerShell 7 message starts with `Conversion from JSON failed with error:`, omitted above. A 5,076-character
+input with a missing colon near its start gave a 5,129-character message on 5.1 ending with the input's last
+line, so the input is not truncated.
+
+**From source:** `Get-ScriptMessageConfig` catches the three not-found exceptions above by type to report a
+missing file, and reports anything else from reading the file as unreadable, both with
+`GetBaseException().Message`. It removes the `(<n>):` position and everything after it from a `ConvertFrom-Json` message, so
+the configuration file, which holds the tenant ID, client ID, and encrypted secrets, never reaches the error. An
+empty configuration file reads as `$null` without an error in both editions.
+
+### What this does not establish
+
+- Only the inputs above were tried. That every 5.1 message repeating the input uses the `(<n>):` form is
+  inferred from them, not read from the source of the serializer 5.1 uses.
+- A message without that form can still quote one token: `Invalid JSON primitive` names the unquoted text it
+  stopped at, so an unquoted secret would appear in it.
+- What PowerShell 7 builds from the input it accepts but 5.1 rejects was not examined.
+- A file the account has no permission to read was not tested, only a folder given as the path.

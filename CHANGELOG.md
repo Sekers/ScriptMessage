@@ -14,9 +14,10 @@
 - `Send-ScriptMessage` now honors an explicit `-IncludeBCCInGroupChat $false`. The configuration file's `IncludeBCCInGroupChat` setting was used in its place, so a call asking to keep BCC recipients out of a group chat added them anyway when that setting was `true`, making those addresses visible to everyone in the chat. An explicit `-IncludeBCCInGroupChat $true` was unaffected.
 - `Send-ScriptMessage` now sends mail without a `ChatType` setting in the configuration file. A Mail-only send failed without it, reporting "Cannot convert null to type ChatType", even though `ChatType` only affects chat; a configuration file listing only `Mail` in `AllowableMessageTypes`, or one written before the setting was added in version 1.0.8, was affected. A `Chat` send with no chat type, because the setting is missing or blank and `-ChatType` was not passed, now reports that in the returned result's `Error` property and names both places it can be set.
 - `Get-ScriptMessageContext -ReturnCachedContext` no longer reports a connection that `Disconnect-ScriptMessage` has already ended. Disconnecting left the cached context in place, so a cached read kept returning the account and scopes of the finished session, and only a read without `-ReturnCachedContext` showed the truth. Disconnecting now clears that service's cached context, so the next cached read asks the service again.
-- Minor: Improved how `Send-ScriptMessage` validates configuration file settings, so a value in a form a setting does not support is no longer misread.
+- Minor: `Send-ScriptMessage` now reads every true/false setting in the configuration file the same way, so a value other than `true` no longer turns a setting on.
 - Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
+- Minor: `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` now say why a configuration file could not be used.
 
 ---
 ## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16

@@ -747,8 +747,9 @@ Describe 'Send-ScriptMessage configuration defaults' {
             }
         }
 
-        # A boolean setting is an opt-in flag, on only when it equals $true. Quoted text is not $true, so a
-        # quoted "false" must read as off; a [bool] cast would read it as on.
+        # A boolean setting is an opt-in flag, on only when it equals $true. Text equals $true only when it
+        # reads "true" in any letter case, so a quoted "false" must read as off; a [bool] cast would read it
+        # as on.
         Context 'A configuration file that quotes IncludeBCCInGroupChat as "false"' {
             BeforeAll {
                 Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
