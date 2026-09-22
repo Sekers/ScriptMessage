@@ -251,7 +251,7 @@ authentication type gets `Process` scope.
 
 ## 8. From documentation: app registration, consent, credentials, and limiting mailbox access
 
-These pages back the setup steps on the wiki's Microsoft 365 page and several setting entries on its Home page.
+These pages back the setup steps on the wiki's Microsoft Graph page and several setting entries on its Home page.
 Nothing in this section was tested against a tenant.
 
 **From documentation:**
