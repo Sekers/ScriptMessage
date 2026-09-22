@@ -18,6 +18,32 @@ Describe 'ScriptMessage module' {
         ($ExportedFunctions -join ', ') | Should -Be ($PublicFunctions -join ', ')
     }
 
+    # A new runspace has its own global scope, so variables left by the other test files' imports cannot hide one
+    # created here. The script runs in a local scope so that its own variables are not global either.
+    It 'creates no global variables' {
+        $Script = {
+            param($ManifestPath, $ConfigPath)
+
+            $Before = @(Get-Variable -Scope Global | ForEach-Object { $_.Name })
+            Import-Module $ManifestPath
+            Set-ScriptMessageConfigFilePath -Path $ConfigPath
+            @(Get-Variable -Scope Global | Where-Object { $_.Name -notin $Before } | ForEach-Object { $_.Name })
+        }
+
+        $PowerShell = [PowerShell]::Create()
+        try
+        {
+            $null = $PowerShell.AddScript($Script.ToString(), $true).AddArgument($ManifestPath).AddArgument((Join-Path $TestDrive 'config.json'))
+            $NewGlobals = $PowerShell.Invoke()
+            $PowerShell.Streams.Error | Should -BeNullOrEmpty
+            $NewGlobals | Should -BeNullOrEmpty
+        }
+        finally
+        {
+            $PowerShell.Dispose()
+        }
+    }
+
     # PSScriptAnalyzer is optional locally. The check runs under PowerShell 7 only, because Windows PowerShell 5.1
     # cannot see the copy the CI workflow installs; the analyzer has the same rules in both editions, and syntax
     # that only PowerShell 7 accepts already fails the 5.1 run when the module imports.

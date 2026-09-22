@@ -105,6 +105,64 @@ Describe 'Get-ScriptMessageConfig paths' {
     }
 }
 
+Describe 'Get-ScriptMessageConfig and the stored path' {
+    BeforeAll {
+        $AsciiName = 'Stored path test'
+    }
+
+    # Importing the module again clears the path, so each test starts with none set.
+    BeforeEach {
+        Import-Module (Join-Path $PSScriptRoot '..\ScriptMessage\ScriptMessage.psd1') -Force
+    }
+
+    It 'reads the file set by Set-ScriptMessageConfigFilePath' {
+        $Path = Join-Path $TestDrive 'stored.json'
+        New-TestConfigFile -Path $Path -CertificateName $AsciiName -Encoding ([System.Text.UTF8Encoding]::new($false))
+        Set-ScriptMessageConfigFilePath -Path $Path
+
+        (Get-ScriptMessageConfig -Service MicrosoftGraph).MgApp_CertificateName | Should -BeExactly $AsciiName
+    }
+
+    It 'reports that no path is set' {
+        { Get-ScriptMessageConfig } | Should -Throw -ExpectedMessage 'No ScriptMessage configuration file path is set*'
+    }
+
+    It 'adds the full path of the file it read with -ReturnConfigFilePath' {
+        New-TestConfigFile -Path (Join-Path $TestDrive 'relative.json') -CertificateName $AsciiName -Encoding ([System.Text.UTF8Encoding]::new($false))
+
+        Push-Location -LiteralPath $TestDrive
+        try
+        {
+            Set-ScriptMessageConfigFilePath -Path '.\relative.json'
+            $Config = Get-ScriptMessageConfig -ReturnConfigFilePath
+        }
+        finally
+        {
+            Pop-Location
+        }
+
+        $Config.MicrosoftGraph.MgApp_CertificateName | Should -BeExactly $AsciiName
+        $Config.ConfigFilePath | Should -Be (Join-Path $TestDrive 'relative.json')
+    }
+
+    It 'adds the path to the service section returned for -Service' {
+        $Path = Join-Path $TestDrive 'service.json'
+        New-TestConfigFile -Path $Path -CertificateName $AsciiName -Encoding ([System.Text.UTF8Encoding]::new($false))
+
+        $Config = Get-ScriptMessageConfig -Path $Path -Service MicrosoftGraph -ReturnConfigFilePath
+
+        $Config.MgApp_CertificateName | Should -BeExactly $AsciiName
+        $Config.ConfigFilePath | Should -Be $Path
+    }
+
+    It 'adds no path without -ReturnConfigFilePath' {
+        $Path = Join-Path $TestDrive 'no-switch.json'
+        New-TestConfigFile -Path $Path -CertificateName $AsciiName -Encoding ([System.Text.UTF8Encoding]::new($false))
+
+        (Get-ScriptMessageConfig -Path $Path).PSObject.Properties.Name | Should -Not -Contain 'ConfigFilePath'
+    }
+}
+
 Describe 'Get-ScriptMessageConfig errors' {
     It 'reports a folder that does not exist' {
         { Get-ScriptMessageConfig -Path (Join-Path $TestDrive 'No Such Folder\config.json') } |

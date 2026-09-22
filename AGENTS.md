@@ -127,10 +127,12 @@ covers when `[Unreleased]` becomes a version and how that version is chosen.
   entry also adds `## [Unreleased](https://github.com/Sekers/ScriptMessage/compare/<release>...develop)` at the
   top, where `<release>` is `$Release` from the baseline commands above. Never add an empty one, and never leave
   one in a release: the Release workflow refuses to publish while it is there.
-- Newest version first. A released version uses this heading shape, and a `---` line separates it from the next
-  (older) version:
+- Newest version first. A released version uses this heading shape, and a `---` line, with a blank line on each
+  side of it, separates it from the next (older) version:
 
   ```markdown
+  ---
+
   ## [1.2.0](https://github.com/Sekers/ScriptMessage/tree/1.2.0) - 2026-09-20
 
   ### Fixed

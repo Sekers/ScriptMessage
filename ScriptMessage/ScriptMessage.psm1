@@ -1,9 +1,13 @@
-# Global Variables
-New-Variable -Name 'ScriptMessage_Global_CachedServiceContext' -Value ([PSCustomObject]@{}) -Scope Global -Force
-
 # Module Variables
-# Each file in Services/ registers itself here as it is dot-sourced below. Module scope rather than global:
-# nothing outside the module reads it, and it is rebuilt from scratch on every import.
+# Module scope rather than global, so callers can neither see nor change them, and each import starts them fresh.
+
+# The configuration file path set by Set-ScriptMessageConfigFilePath, read by Get-ScriptMessageConfig.
+$script:ScriptMessageConfigFilePath = $null
+
+# Each service's context from Get-ScriptMessageContext. Disconnect-ScriptMessage removes a service's entry.
+$script:ScriptMessageCachedServiceContext = [PSCustomObject]@{}
+
+# Each file in Services/ registers itself here as it is dot-sourced below.
 $script:ScriptMessageServiceTable = [ordered]@{}
 
 # Aliases

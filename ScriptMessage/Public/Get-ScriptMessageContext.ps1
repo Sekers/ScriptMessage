@@ -42,7 +42,7 @@ function Get-ScriptMessageContext
     $ScriptMessageContext = New-Object System.Object
 
     # Enable a force refresh if no data exists for the specified service or if $ReturnCachedContext is not present.
-    if (($null -eq $ScriptMessage_Global_CachedServiceContext.$Service) -or (-not $ReturnCachedContext.IsPresent))
+    if (($null -eq $script:ScriptMessageCachedServiceContext.$Service) -or (-not $ReturnCachedContext.IsPresent))
     {
         $RefreshContext = $true
     }
@@ -73,11 +73,11 @@ function Get-ScriptMessageContext
         }
 
         # Update cached context data for the specified service.
-        $ScriptMessage_Global_CachedServiceContext | Add-Member -MemberType NoteProperty -Name $Service -Value $ScriptMessageContext -Force # Force allows overwriting existing members.
+        $script:ScriptMessageCachedServiceContext | Add-Member -MemberType NoteProperty -Name $Service -Value $ScriptMessageContext -Force # Force allows overwriting existing members.
     }
     else
     {
-        $ScriptMessageContext = $ScriptMessage_Global_CachedServiceContext.$Service
+        $ScriptMessageContext = $script:ScriptMessageCachedServiceContext.$Service
     }
 
     return $ScriptMessageContext
