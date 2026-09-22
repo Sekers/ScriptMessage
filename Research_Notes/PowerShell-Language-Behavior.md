@@ -87,8 +87,42 @@ without renaming the property.
 - `[Environment]::ExpandEnvironmentVariables('%SystemRoot%\x')` returned `C:\Windows\x`. It only substitutes
   environment variables.
 
-**From source:** `Connect-ScriptMessage_MicrosoftGraph` passes the `MgApp_CertificatePath` configuration value
-through `ExpandString`, so that setting can execute code written into the configuration file.
+What `ExpandString` can reach when a module function calls it was measured on **2026-09-21** with PowerShell
+**7.6.6** only, using a stand-in module laid out like this one: a `.psm1` that dot-sources a function from a
+`Services\` file, and that function passing its argument to `ExpandString`. The calling script lived in a
+different folder, set a script variable, and set a global one.
+
+| Text expanded | Calling script run with `pwsh -File` | Calling script run with `&` |
+| --- | --- | --- |
+| `$PSScriptRoot\cert.pfx` | the module's `Services` folder | the same |
+| a variable the calling script set | its value | empty |
+| a global variable | its value | its value |
+| `$env:SystemRoot\cert.pfx`, `${env:ProgramFiles(x86)}\cert.pfx` | expanded | expanded |
+| `$HOME\cert.pfx` | expanded | expanded |
+| `C:\certs\$app\cert.pfx` | `C:\certs\\cert.pfx` | the same |
+| ``C:\certs\a`b.pfx`` | `C:\certs\a.pfx` | the same |
+| `\\server\c$\certs\cert.pfx` | unchanged | the same |
+
+`$PSScriptRoot` inside a function is the folder of the file that defines the function, never the caller's. The
+same day, the real `Connect-ScriptMessage_MicrosoftGraph`, with `Get-PfxCertificate` and `Connect-MgGraph`
+replaced by stand-ins inside the module, passed `...\ScriptMessage\Services\Config\PrivateKeyCertificate.pfx` to
+`Get-PfxCertificate` for the setting `$PSScriptRoot\Config\PrivateKeyCertificate.pfx`.
+
+**From source:** every release from `1.0.0` to `1.1.1` passed `MgApp_CertificatePath` through `ExpandString` in a
+function defined in the module's `Services` folder (`MgGraph.ps1`, then `MicrosoftGraph.ps1`), so that setting
+ran any code written into it, and `$PSScriptRoot` in it meant the module's `Services` folder.
+`Connect-ScriptMessage_MicrosoftGraph` now expands only `$env:NAME` and `${env:NAME}` in that setting, with a
+`-replace` that looks each name up with `[Environment]::GetEnvironmentVariable`, and uses the rest as written. A
+scriptblock replacement needs PowerShell 6 or later, which is safe there because certificate file
+authentication throws before PowerShell 7.4.
+
+### What this does not establish
+
+- The scope table comes from the stand-in module. Only `$PSScriptRoot` was checked against the real function.
+- Windows PowerShell 5.1 was not run. The setting is unused there, since certificate file authentication needs
+  PowerShell 7.4 or later.
+- **Unverified:** why a calling script's variables are visible under `pwsh -File`. The results fit `-File`
+  running the script in the global scope, but that is inferred, not traced.
 
 ## 5. Measured: looking up a property by a name held in an array
 
