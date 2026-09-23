@@ -6,7 +6,8 @@ happened when this repository was normalized to LF. The rules themselves live in
 
 Sections 1 to 4 were measured on **2026-09-15** on Windows 11 (10.0.26200), with Windows PowerShell
 **5.1.26100.9444**, PowerShell **7.6.6**, and Git **2.54.0.windows.1** with `core.autocrlf=true` set in the
-system-wide Git configuration. Section 5 gives its own date.
+system-wide Git configuration. Section 5, and the module manifest measurement in section 1, give their own
+dates.
 
 **Claims are labelled with their evidence.**
 
@@ -30,8 +31,21 @@ A two-line script that assigns one em dash (U+2014) to a string and prints the s
 Windows PowerShell 5.1 read the em dash's three UTF-8 bytes as three characters, with no error or warning.
 PowerShell 7 read both files correctly. This is why PowerShell files in this repository are ASCII only rather
 than UTF-8 with a BOM: with no non-ASCII characters, whether a file has a BOM makes no difference to either
-edition. The row saved with a BOM is the fallback for a module manifest that genuinely needs a non-ASCII
-character, since a `.psd1` cannot contain an escape such as `[char]0x00E9`.
+edition.
+
+**Measured on 2026-09-23**, on the same machine and PowerShell versions, with ANSI code page 1252: the same
+question for a module manifest, the one PowerShell file that may need a BOM, since a `.psd1` cannot contain an
+escape such as `[char]0x00E9`. A minimal manifest whose `Author` was `Caf` followed by U+00E9 was saved as UTF-8
+and read with `Import-PowerShellDataFile`, `Test-ModuleManifest`, and `Import-Module`:
+
+| Saved as | Windows PowerShell 5.1 | PowerShell 7 |
+| --- | --- | --- |
+| UTF-8 without BOM | 5 characters, `Caf` then U+00C3 U+00A9 | 4 characters, `Caf` then U+00E9 |
+| UTF-8 with BOM | 4 characters, `Caf` then U+00E9 | 4 characters, `Caf` then U+00E9 |
+
+All three commands gave the same result in every case, and none raised an error or warning. So a manifest that
+genuinely needs a non-ASCII character is saved as UTF-8 with a BOM, which both editions read correctly. Only the
+`Author` value and code page 1252 were tested.
 
 Section 5 measures the same question for the JSON configuration file.
 
