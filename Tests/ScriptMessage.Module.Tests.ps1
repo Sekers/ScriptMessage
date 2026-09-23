@@ -28,6 +28,8 @@ Describe 'ScriptMessage module' {
     # analyzer fails rather than skips, so the check cannot quietly disappear if the install step breaks.
     #
     # ParseError is its own severity, so without it a syntax error would report nothing.
+    #
+    # Research_Notes/Test-Tooling-Behavior.md records the measurements behind these choices.
     It 'has no PSScriptAnalyzer errors' {
         if ($PSVersionTable.PSEdition -ne 'Core')
         {

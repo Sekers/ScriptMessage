@@ -37,6 +37,7 @@ jobs:
     env:
       # Pinned so a new analyzer rule cannot fail a build that passed before. The runner image ships its own copy,
       # so the module tests read this to use exactly this version rather than whichever copy PowerShell finds first.
+      # Research_Notes/Test-Tooling-Behavior.md says what to recheck when changing it.
       PSSCRIPTANALYZER_VERSION: '1.25.0'
 
     steps:
