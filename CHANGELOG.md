@@ -9,6 +9,7 @@
   - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
 - New Parameter: `Get-ScriptMessageConfig -ReturnConfigFilePath` > Adds a `ConfigFilePath` property to the returned settings, holding the full path of the configuration file that was read.
 - `MgApp_CertificatePath` can now be relative to the configuration file's folder, so a certificate file kept beside the configuration file can be given as just its name, such as `PrivateKeyCertificate.pfx`. Settings passed to `Connect-ScriptMessage -ServiceConfig` don't come with a configuration file, so a relative path in them is still resolved from PowerShell's current location.
+- Certificate file authentication, with `MgApp_AuthenticationType` set to `CertificateFile`, now works on Windows PowerShell 5.1. It no longer needs PowerShell 7.4 or later, where `Connect-ScriptMessage` and `Send-ScriptMessage` stopped with "Connecting to Microsoft Graph using a certificate file is only supported with PowerShell version 7.4 and later."
 
 ### Changed
 
@@ -28,10 +29,12 @@
 - Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
 - Minor: `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` now say why a configuration file could not be used.
+- Minor: With `MgApp_AuthenticationType` set to `CertificateFile`, a certificate file that doesn't exist is now reported by its path instead of as a missing password.
 
 ### Security
 
 - `MgApp_CertificatePath` ran any PowerShell code written into it, so anyone who could edit the configuration file could run commands as the account sending messages. This affected every configuration file on PowerShell 7.4 and later, whatever authentication it was set up for. Only environment variables written as `$env:NAME` or `${env:NAME}` are expanded now, and the rest of the path is used exactly as written.
+- With `MgApp_AuthenticationType` set to `CertificateFile`, connecting on PowerShell 7 left a copy of the certificate's private key in the profile of the account running the script, under `%APPDATA%\Microsoft\Crypto\Keys`: one more copy for each PowerShell session that connected, whether or not it disconnected. The private key is now kept only in memory. Copies left by earlier versions stay where they are.
 
 ---
 

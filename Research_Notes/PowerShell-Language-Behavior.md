@@ -111,23 +111,22 @@ replaced by stand-ins inside the module, passed `...\ScriptMessage\Services\Conf
 **From source:** every release from `1.0.0` to `1.1.1` passed `MgApp_CertificatePath` through `ExpandString` in a
 function defined in the module's `Services` folder (`MgGraph.ps1`, then `MicrosoftGraph.ps1`), so that setting
 ran any code written into it, and `$PSScriptRoot` in it meant the module's `Services` folder.
-`Connect-ScriptMessage_MicrosoftGraph` now expands only `$env:NAME` and `${env:NAME}` in that setting, with a
-`-replace` that looks each name up with `[Environment]::GetEnvironmentVariable`, and expands nothing else. A
-scriptblock replacement needs PowerShell 6 or later, which is safe there because certificate file
-authentication throws before PowerShell 7.4. It then resolves a relative result from the configuration file's
-folder, as section 13 describes.
+`Connect-ScriptMessage_MicrosoftGraph` now expands only `$env:NAME` and `${env:NAME}` in that setting, with
+`[regex]::Replace` and a `MatchEvaluator` that looks each name up with `[Environment]::GetEnvironmentVariable`, and
+expands nothing else. It then resolves a relative result from the configuration file's folder, as section 13
+describes.
 
 The replacement was measured in both editions on **2026-09-23**, expanding `$env:SM_TEST_CERTS\app.pfx` with that
 variable set to `C:\Certs` and the pattern `\$\{env:([^}]+)\}|\$env:(\w+)`:
 
 | Replacement | Windows PowerShell 5.1 | PowerShell 7 |
 | --- | --- | --- |
-| `-replace $Pattern, { ... }`, as the module does | no error; the scriptblock's own text became the replacement, so the result was a space followed by `[Environment]::GetEnvironmentVariable($env:SM_TEST_CERTS\app.pfx.Groups[` and more | `C:\Certs\app.pfx` |
+| `-replace $Pattern, { ... }` | no error; the scriptblock's own text became the replacement, so the result was a space followed by `[Environment]::GetEnvironmentVariable($env:SM_TEST_CERTS\app.pfx.Groups[` and more | `C:\Certs\app.pfx` |
 | `[regex]::Replace($Setting, $Pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) ... })` | `C:\Certs\app.pfx` | `C:\Certs\app.pfx` |
 
-So the module's expansion would give a wrong path under 5.1 without any error.
-[Certificate-File-Behavior.md](./Certificate-File-Behavior.md) covers the rest of what certificate file
-authentication needs there.
+So a `-replace` scriptblock gives a wrong path under 5.1 without any error. The module used one while certificate
+file authentication needed PowerShell 7.4, and switched to `[regex]::Replace` when it stopped needing it.
+[Certificate-File-Behavior.md](./Certificate-File-Behavior.md) covers the rest of that change.
 
 ### What this does not establish
 

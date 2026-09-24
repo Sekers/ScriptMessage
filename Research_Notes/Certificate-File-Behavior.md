@@ -1,16 +1,16 @@
 # Certificate file behavior
 
 How PowerShell and .NET load a `.pfx` certificate file, where that matters for `CertificateFile` authentication in
-`Connect-ScriptMessage_MicrosoftGraph` (`ScriptMessage/Services/MicrosoftGraph.ps1`). That authentication type
-throws before PowerShell 7.4, and this file records what stands in the way of Windows PowerShell 5.1 and what loading
-a certificate leaves behind in either edition.
+`Connect-ScriptMessage_MicrosoftGraph` (`ScriptMessage/Services/MicrosoftGraph.ps1`). Through `1.1.1` that
+authentication type threw before PowerShell 7.4. This file records what stood in the way of Windows PowerShell 5.1,
+what loading a certificate leaves behind in either edition, and how the module loads the file now (section 6).
 
 Measured on **2026-09-23** on Windows 11 (10.0.26200), with Windows PowerShell **5.1.26100.9444** (.NET Framework
 4.8.9345.0), PowerShell **7.6.6**, and `Microsoft.Graph.Authentication` **2.25.0**, in standalone scripts. The
 certificates were throwaway self-signed RSA 2048 certificates, built in memory with PowerShell 7's
 `CertificateRequest` and exported as `.pfx` files with and without a password. No certificate store was written to.
-Only section 5 connected to a tenant, with application permissions, and nothing was sent. For part of it, one
-throwaway certificate's public key was registered on the app temporarily.
+Only sections 5 and 6 connected to a tenant, with application permissions, and nothing was sent. For part of
+section 5 and all of section 6, one throwaway certificate's public key was registered on the app temporarily.
 
 **Claims are labelled with their evidence.**
 
@@ -21,7 +21,8 @@ throwaway certificate's public key was registered on the app temporarily.
 > **The one-line summary:** Windows PowerShell 5.1's `Get-PfxCertificate` cannot take a password, but .NET's
 > `X509Certificate2` loads the same file in both editions, and `Connect-MgGraph` signs in with it in both. Loading
 > normally writes the private key to the user profile, and under PowerShell 7 that file stays behind when the
-> process exits, which the module's own sign-in does today. `EphemeralKeySet` writes nothing and signs in the same.
+> process exits, as the module's sign-in did through `1.1.1`. `EphemeralKeySet` writes nothing and signs in the
+> same.
 
 ## 1. Measured: `Get-PfxCertificate` differs by edition
 
@@ -35,9 +36,8 @@ could sign. For a `.pfx` with a password it printed `Enter password:` and waited
 scheduled task runs, it failed instead: "Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is
 not available."
 
-**From source:** `Connect-ScriptMessage_MicrosoftGraph` calls `Get-PfxCertificate -NoPromptForPassword`, then again
-with `-Password` from `MgApp_EncryptedCertificatePassword` if that fails, and throws before PowerShell 7.4. Every
-release from `1.0.0` to `1.1.1` loads the file with `Get-PfxCertificate`.
+**From source:** every release from `1.0.0` to `1.1.1` called `Get-PfxCertificate -NoPromptForPassword`, then again
+with `-Password` from `MgApp_EncryptedCertificatePassword` if that failed, and threw before PowerShell 7.4.
 
 ## 2. Measured: loading with `X509Certificate2` works in both editions
 
@@ -84,9 +84,10 @@ Through the module itself, under PowerShell 7: a child process imported this rep
 file (1,735 bytes) was left in `Keys`. The key files these runs left behind were deleted afterwards.
 
 **From source:** `Connect-ScriptMessage_MicrosoftGraph` never disposes the certificate; it passes it to
-`Connect-MgGraph -Certificate`. So under PowerShell 7, a script that connects with `CertificateFile` authentication
-leaves a copy of the app's private key in the profile of the account that runs it. Section 5 measured this with the
-real `Connect-MgGraph` after a successful sign-in, with and without `Disconnect-ScriptMessage`.
+`Connect-MgGraph -Certificate`, which keeps it. So through `1.1.1`, a script that connected with `CertificateFile`
+authentication under PowerShell 7 left a copy of the app's private key in the profile of the account that ran it.
+Section 5 measured this with the real `Connect-MgGraph` after a successful sign-in, with and without
+`Disconnect-ScriptMessage`.
 
 ## 4. Measured: `Connect-MgGraph` takes a loaded certificate in both editions
 
@@ -99,7 +100,8 @@ the same three certificate parameters in both: `-Certificate` (`X509Certificate2
 Each attempt ran in a new process with application permissions. The direct attempts ran
 `Connect-MgGraph -TenantId -ClientId -NoWelcome`, then `Get-MgContext`, then `Disconnect-MgGraph`. The module
 attempts ran this repository's `Connect-ScriptMessage -ReturnConnectionInfo` with `CertificateFile` settings, an
-encrypted password, and the real `Connect-MgGraph`, which is what every release does to load the file.
+encrypted password, and the real `Connect-MgGraph`, before section 6's change, so they loaded the file as every
+release through `1.1.1` did.
 
 The throwaway certificate was tried twice: first while it was not registered on the app, then after its public key
 was registered. The first run shows that a sign-in uses the certificate it is given, since Entra rejected it; the
@@ -125,13 +127,31 @@ attempt failed on the machine.
 Separately, in both editions, a signature over test data made with the private key, loaded with either
 `DefaultKeySet` or `EphemeralKeySet`, verified with a copy of the certificate holding only the public key.
 
-## 6. From source: what else in `Connect-ScriptMessage_MicrosoftGraph` needs PowerShell 7
+## 6. From source: how the module loads the file now
 
-- Expanding environment variables in `MgApp_CertificatePath` uses `-replace` with a scriptblock, which Windows
-  PowerShell 5.1 turns into text instead of running
-  ([PowerShell-Language-Behavior.md](./PowerShell-Language-Behavior.md) section 4).
-- Deciding whether `MgApp_CertificatePath` is relative uses `IsPathRooted()` and `IsPSAbsolute()`, which gave the same
-  results in both editions ([PowerShell-Language-Behavior.md](./PowerShell-Language-Behavior.md) section 13).
+`Connect-ScriptMessage_MicrosoftGraph` has no PowerShell version check for `CertificateFile` authentication. It:
+
+- Expands environment variables in `MgApp_CertificatePath` with `[regex]::Replace`, because a `-replace` scriptblock
+  turns into text under Windows PowerShell 5.1 ([PowerShell-Language-Behavior.md](./PowerShell-Language-Behavior.md)
+  section 4).
+- Decides whether the path is relative with `IsPathRooted()` and `IsPSAbsolute()`, which gave the same answers in
+  both editions ([PowerShell-Language-Behavior.md](./PowerShell-Language-Behavior.md) section 13).
+- Resolves the result with `$PSCmdlet.GetUnresolvedProviderPathFromPSPath()`, since .NET needs a full file system
+  path (section 2).
+- Loads it with `New-Object` for `X509Certificate2` and `EphemeralKeySet`: first with an empty password, which opens a
+  file that has none, then with `MgApp_EncryptedCertificatePassword`. When the first attempt fails, it reports a file
+  that does not exist by its path before looking for a password, since .NET gives the same message for a missing
+  password and a wrong one but names no file when the file is missing. `New-Object` rather than `::new()` lets the
+  tests mock the load.
+
+`Tests/Connect-ScriptMessage.Tests.ps1` loads real `.pfx` files, with and without a password, in both editions, and
+fails if loading writes a key file to either folder in section 3. A copy of the module that loaded with
+`DefaultKeySet` failed those tests in both editions.
+
+**Measured:** after the change, each edition signed in through the module with the registered throwaway certificate,
+each attempt in a new process: once with `Connect-ScriptMessage -ServiceConfig` and the full path, and once from a
+configuration file whose `MgApp_CertificatePath` was the file name alone, with PowerShell's current location in
+another folder. All four signed in with no warning, and none left a key file after the process exited.
 
 ## What this does not establish
 
@@ -140,6 +160,7 @@ Separately, in both editions, a signature over test data made with the private k
 - Only one kind of `.pfx` was tried: a key created by .NET, which landed in `Keys` in both editions. A `.pfx` whose
   key names a legacy CryptoAPI provider, such as one exported from the Windows certificate store, may be written to
   `RSA\<user SID>` instead.
-- PowerShell 7.0 to 7.3 were not run, so why the module requires 7.4 rather than an earlier 7.x is not established.
+- PowerShell 7.0 to 7.3 were not run, so why releases through `1.1.1` required 7.4 is not established, and certificate
+  file authentication was not tried on those versions.
 - Linux and macOS were not run.
 - Whether Windows ever removes a key file left behind this way was not examined.
