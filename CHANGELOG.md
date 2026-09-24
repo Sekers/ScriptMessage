@@ -4,7 +4,7 @@
 
 ### Added
 
-- New Parameter: `Send-ScriptMessage -MailType` > Chooses how an email with more than one recipient is sent. It overrides the configuration file's `MailType` setting, and `Group` is used when neither one sets it.
+- `Send-ScriptMessage -MailType` and the configuration file's `MailType` setting choose how an email with more than one recipient is sent. `-MailType` overrides the setting, and `Group` is used when neither one sets it.
   - `Group` sends one email to all of the To, CC, and BCC recipients.
   - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
 - New Parameter: `Get-ScriptMessageConfig -ReturnConfigFilePath` > Adds a `ConfigFilePath` property to the returned settings, holding the full path of the configuration file that was read.
