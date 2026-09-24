@@ -6,7 +6,7 @@ function Register-ScriptMessageService
         blocks: the name is resolved at call time, which is what lets Pester's mocks shadow a handler.
 
         The connect handler takes -ServiceConfig, the service's section of the configuration file, and
-        -ConfigFilePath, the full path of that file, which is empty when the settings did not come from a file.
+        -ConfigFilePath, the full path of that file.
     #>
 
     [CmdletBinding()]

@@ -487,8 +487,7 @@ and `NoSuchDrive:\app.pfx`.
 variables, as relative only when `IsPathRooted()` and `IsPSAbsolute()` both return `False` and it does not start
 with `~`. When the settings came from a configuration file, it looks for a relative path in that file's folder,
 and uses the path as written (so relative to PowerShell's current location) only when the file is missing from the
-folder but present in the current location, with a deprecation warning. Settings passed to
-`Connect-ScriptMessage -ServiceConfig` carry no file path, so their relative paths are used as written.
+folder but present in the current location, with a deprecation warning.
 
 ### What this does not establish
 

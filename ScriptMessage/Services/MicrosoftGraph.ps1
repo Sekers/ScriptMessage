@@ -257,7 +257,7 @@ function Connect-ScriptMessage_MicrosoftGraph
         ValueFromPipelineByPropertyName = $true)]
         [pscustomobject]$ServiceConfig,
 
-        # The full path of the configuration file the settings came from, or empty when they did not come from one.
+        # The full path of the configuration file the settings came from.
         [Parameter(
         Mandatory = $false,
         ValueFromPipelineByPropertyName = $true)]
@@ -381,8 +381,8 @@ function Connect-ScriptMessage_MicrosoftGraph
 
                     # A relative path is resolved from the configuration file's folder. .NET does not count a
                     # PowerShell drive as absolute and PowerShell does not count a UNC path, so a path is relative
-                    # only when neither does; '~' is the home folder. Settings that did not come from a file keep
-                    # resolving from the current location.
+                    # only when neither does; '~' is the home folder. Without a configuration file path, a relative
+                    # path resolves from the current location.
                     $DriveName = $null
                     $IsRelativePath = -not ([string]::IsNullOrWhiteSpace($MgApp_CertificatePath) -or
                         [System.IO.Path]::IsPathRooted($MgApp_CertificatePath) -or

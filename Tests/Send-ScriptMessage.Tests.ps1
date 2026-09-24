@@ -844,7 +844,7 @@ Describe 'Send-ScriptMessage configuration defaults' {
             Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly
         }
 
-        It 'still reads the file when Connect-ScriptMessage is called on its own' {
+        It 'Connect-ScriptMessage reads the file itself' {
             $null = Connect-ScriptMessage -Service MicrosoftGraph
 
             Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly

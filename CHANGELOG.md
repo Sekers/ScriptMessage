@@ -8,7 +8,7 @@
   - `Group` sends one email to all of the To, CC, and BCC recipients.
   - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
 - New Parameter: `Get-ScriptMessageConfig -ReturnConfigFilePath` > Adds a `ConfigFilePath` property to the returned settings, holding the full path of the configuration file that was read.
-- `MgApp_CertificatePath` can now be relative to the configuration file's folder, so a certificate file kept beside the configuration file can be given as just its name, such as `PrivateKeyCertificate.pfx`. Settings passed to `Connect-ScriptMessage -ServiceConfig` don't come with a configuration file, so a relative path in them is still resolved from PowerShell's current location.
+- `MgApp_CertificatePath` can now be relative to the configuration file's folder, so a certificate file kept beside the configuration file can be given as just its name, such as `PrivateKeyCertificate.pfx`.
 - Certificate file authentication, with `MgApp_AuthenticationType` set to `CertificateFile`, now works on Windows PowerShell 5.1. It no longer needs PowerShell 7.4 or later, where `Connect-ScriptMessage` and `Send-ScriptMessage` stopped with "Connecting to Microsoft Graph using a certificate file is only supported with PowerShell version 7.4 and later."
 
 ### Changed

@@ -149,9 +149,10 @@ fails if loading writes a key file to either folder in section 3. A copy of the 
 `DefaultKeySet` failed those tests in both editions.
 
 **Measured:** after the change, each edition signed in through the module with the registered throwaway certificate,
-each attempt in a new process: once with `Connect-ScriptMessage -ServiceConfig` and the full path, and once from a
-configuration file whose `MgApp_CertificatePath` was the file name alone, with PowerShell's current location in
-another folder. All four signed in with no warning, and none left a key file after the process exited.
+each attempt in a new process: once with the settings and the full path handed to `Connect-ScriptMessage` directly,
+through a `-ServiceConfig` parameter that was removed before release, and once from a configuration file whose
+`MgApp_CertificatePath` was the file name alone, with PowerShell's current location in another folder. All four
+signed in with no warning, and none left a key file after the process exited.
 
 ## What this does not establish
 

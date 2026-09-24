@@ -10,6 +10,17 @@ BeforeAll {
     InModuleScope ScriptMessage {
         function script:Connect-MgGraph { param($Scopes, $TenantId, $ClientId, $Certificate, $CertificateName, $CertificateThumbprint, $ClientSecretCredential) throw 'Connect-MgGraph stand-in called without a mock.' }
     }
+
+    # Hands settings straight to the Microsoft Graph connect function, for tests of what it does with them.
+    # Connect-ScriptMessage always reads them from the configuration file.
+    function Invoke-MicrosoftGraphConnect
+    {
+        param([pscustomobject]$ServiceConfig)
+        InModuleScope ScriptMessage -Parameters @{ ServiceConfig = $ServiceConfig } {
+            param($ServiceConfig)
+            Connect-ScriptMessage_MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop
+        }
+    }
 }
 
 AfterAll {
@@ -108,7 +119,7 @@ Describe 'Connect-ScriptMessage certificate file path' {
             MgApp_CertificatePath    = $Setting
         }
 
-        Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop
+        Invoke-MicrosoftGraphConnect -ServiceConfig $ServiceConfig
         Should -Invoke -ModuleName ScriptMessage New-Object -Times 1 -Exactly -ParameterFilter { $ArgumentList[0] -eq $Expected }
     }
 
@@ -129,7 +140,7 @@ Describe 'Connect-ScriptMessage certificate file path' {
 
         # Any other storage option writes the private key to the user profile, and PowerShell 7 leaves it there.
         It 'keeps the private key in memory' {
-            Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop
+            Invoke-MicrosoftGraphConnect -ServiceConfig $ServiceConfig
 
             Should -Invoke -ModuleName ScriptMessage New-Object -Times 1 -Exactly -ParameterFilter {
                 $ArgumentList[2] -eq [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
@@ -147,14 +158,14 @@ Describe 'Connect-ScriptMessage certificate file path' {
                 $WithPassword = $ServiceConfig.PSObject.Copy()
                 $WithPassword.MgApp_EncryptedCertificatePassword = ConvertTo-SecureString -String 'test-password' -AsPlainText -Force | ConvertFrom-SecureString
 
-                Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $WithPassword -ErrorAction Stop
+                Invoke-MicrosoftGraphConnect -ServiceConfig $WithPassword
 
                 Should -Invoke -ModuleName ScriptMessage New-Object -Times 1 -Exactly -ParameterFilter { $ArgumentList[1] -is [securestring] }
                 Should -Invoke -ModuleName ScriptMessage Connect-MgGraph -Times 1 -Exactly
             }
 
             It 'says so when MgApp_EncryptedCertificatePassword is empty' {
-                { Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop } |
+                { Invoke-MicrosoftGraphConnect -ServiceConfig $ServiceConfig } |
                     Should -Throw '*no password has been provided*'
                 Should -Invoke -ModuleName ScriptMessage Connect-MgGraph -Times 0 -Exactly
             }
@@ -163,7 +174,7 @@ Describe 'Connect-ScriptMessage certificate file path' {
                 $Missing = $ServiceConfig.PSObject.Copy()
                 $Missing.MgApp_CertificatePath = Join-Path $TestDrive 'missing.pfx'
 
-                { Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $Missing -ErrorAction Stop } |
+                { Invoke-MicrosoftGraphConnect -ServiceConfig $Missing } |
                     Should -Throw "*does not exist: '$(Join-Path $TestDrive 'missing.pfx')'*"
                 Should -Invoke -ModuleName ScriptMessage Connect-MgGraph -Times 0 -Exactly
             }
@@ -276,18 +287,6 @@ Describe 'Connect-ScriptMessage certificate file path' {
             }
         }
 
-        It 'resolves settings passed to -ServiceConfig from the current location, without a warning' {
-            $null = New-Item -ItemType File -Path (Join-Path $ConfigFolder 'app.pfx')
-            $ServiceConfig = Get-ScriptMessageConfig -Service MicrosoftGraph
-
-            Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop -WarningVariable Warnings
-
-            $Warnings | Should -BeNullOrEmpty
-            Should -Invoke -ModuleName ScriptMessage New-Object -Times 1 -Exactly -ParameterFilter {
-                $ArgumentList[0] -eq (Join-Path $CurrentFolder 'app.pfx')
-            }
-        }
-
         It 'resolves from the configuration file''s folder when Send-ScriptMessage connects' {
             Mock -ModuleName ScriptMessage Send-ScriptMessage_MicrosoftGraph { }
             $null = New-Item -ItemType File -Path (Join-Path $ConfigFolder 'app.pfx')
@@ -353,7 +352,7 @@ Describe 'Connect-ScriptMessage certificate file loading' {
         }
         $Before = Get-KeyFileNames
 
-        Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop
+        Invoke-MicrosoftGraphConnect -ServiceConfig $ServiceConfig
 
         # The Connect-MgGraph mock still holds the certificate, so a key file written while loading it would be here.
         @(Get-KeyFileNames | Where-Object { $_ -notin $Before }) | Should -BeNullOrEmpty
