@@ -40,7 +40,7 @@ Describe 'Send-ScriptMessage recipient check' {
             # MicrosoftGraph is enum value 0, which is false, so compare with $null rather than testing $Service.
             if ($null -ne $Service) { $Config.$Service } else { $Config }
         }
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
 
         $MessageArguments = @{
@@ -99,19 +99,19 @@ Describe 'Send-ScriptMessage recipient check' {
             @{ Name = 'a hashtable with a blank Address'; To = @{ Name = 'A'; Address = '' } }
         ) {
             { Send-ScriptMessage @MessageArguments -To $To } | Should -Throw '*at least one parameter value*'
-            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
         }
 
         It 'throws when no To, CC, or BCC is given' {
             { Send-ScriptMessage @MessageArguments } | Should -Throw '*at least one parameter value*'
-            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
         }
     }
 }
 
 Describe 'Send-ScriptMessage chat message' {
     BeforeAll {
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
             [pscustomobject]@{
                 Account = 'sender@example.org'
@@ -276,7 +276,7 @@ Describe 'Send-ScriptMessage mail attachment' {
             }
             if ($null -ne $Service) { $Config.$Service } else { $Config }
         }
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
 
         $MailArguments = @{
@@ -304,7 +304,7 @@ Describe 'Send-ScriptMessage mail attachment' {
 
 Describe 'Send-ScriptMessage mail type' {
     BeforeAll {
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
 
         $MailArguments = @{
@@ -497,8 +497,25 @@ Describe 'Send-ScriptMessage mail type' {
         It 'stops a Mail send before connecting, naming the setting' {
             { Send-ScriptMessage @MailArguments } |
                 Should -Throw "*'MailType' setting*must be one of: OneOnOne, Group*'Individual'*"
-            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
             Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+        }
+
+        # Every entry is checked before connecting, so a Chat entry that could be sent goes nowhere when a later
+        # Mail entry cannot be.
+        It 'stops a send with several -ServiceType entries before connecting for any of them' {
+            $Arguments = $MailArguments.Clone()
+            $Arguments.Remove('Service')
+            $Arguments.Remove('Type')
+            $ServiceType = @(
+                @{ Service = 'MicrosoftGraph'; Type = 'Chat' }
+                @{ Service = 'MicrosoftGraph'; Type = 'Mail' }
+            )
+
+            { Send-ScriptMessage @Arguments -ServiceType $ServiceType } |
+                Should -Throw "*'MailType' setting*'Individual'*"
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 0 -Exactly
         }
 
         # MailType only affects Mail, so a value only Mail would read must not stop a Chat send.
@@ -517,7 +534,7 @@ Describe 'Send-ScriptMessage mail type' {
 
 Describe 'Send-ScriptMessage configuration defaults' {
     BeforeAll {
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
             [pscustomobject]@{
                 Account = 'sender@example.org'
@@ -815,8 +832,8 @@ Describe 'Send-ScriptMessage configuration defaults' {
             }
         }
 
-        # Send-ScriptMessage reads the file, then hands the service's section to Connect-ScriptMessage and to
-        # the service, so neither reads it again. Three reads gave a send no single consistent view of its own
+        # Send-ScriptMessage reads the file, then hands the service's section to the service's connect and send
+        # handlers, so neither reads it again. Three reads gave a send no single consistent view of its own
         # settings, because the file can change between them.
         It 'reads the configuration file once for a Mail and Chat send' {
             $Arguments = $ChatArguments.Clone()
@@ -828,8 +845,6 @@ Describe 'Send-ScriptMessage configuration defaults' {
         }
 
         It 'still reads the file when Connect-ScriptMessage is called on its own' {
-            Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
-
             $null = Connect-ScriptMessage -Service MicrosoftGraph
 
             Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly

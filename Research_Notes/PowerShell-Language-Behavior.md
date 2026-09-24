@@ -136,8 +136,10 @@ With `$Config = [pscustomobject]@{ MicrosoftGraph = 'cfg' }`:
 A one-element array works as the property name, so code that looks a property up by a variable holding service
 names works while there is one service and silently returns nothing once there are two.
 
-**From source:** `Send-ScriptMessage` looks up each service's configuration with
+**From source:** every release up to `1.1.1` had `Send-ScriptMessage` look up each service's configuration with
 `$ScriptMessageConfig.$($serviceTypeObj.Service)`, where `Service` is an array holding every requested service.
+`Send-ScriptMessage` now loops over the services in each `MessageServiceType` and looks each one up by its
+registered name, a single string.
 
 ## 6. Measured: without a `process` block, piped input binds only the last item
 
