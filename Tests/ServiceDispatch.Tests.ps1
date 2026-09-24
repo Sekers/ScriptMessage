@@ -57,7 +57,7 @@ Describe 'The public cmdlets dispatch through the service table' {
         }
 
         InModuleScope ScriptMessage {
-            function script:Connect-StandInService { param($ServiceConfig) $script:StandInCalls += 'Connect' }
+            function script:Connect-StandInService { param($ServiceConfig, $ConfigFilePath) $script:StandInCalls += 'Connect' }
             function script:Disconnect-StandInService { $script:StandInCalls += 'Disconnect'; [pscustomobject]@{ StandIn = $true } }
             function script:Get-StandInServiceContext { $script:StandInCalls += 'GetContext'; [pscustomobject]@{ StandIn = $true } }
             function script:Send-StandInService { $script:StandInCalls += 'Send'; [pscustomobject]@{ StandIn = $true } }
@@ -114,6 +114,19 @@ Describe 'The public cmdlets dispatch through the service table' {
         InModuleScope ScriptMessage {
             $script:StandInCalls | Should -Contain 'Connect'
             $script:StandInCalls | Should -Contain 'Send'
+        }
+    }
+
+    # MicrosoftGraph is the only MessagingService member, so naming it twice is the only way to put two services
+    # in one -ServiceType entry. -Service removes duplicates, so it cannot do the same.
+    It 'Send-ScriptMessage connects and sends once for each service one -ServiceType entry names' {
+        $Result = @(Send-ScriptMessage -ServiceType @{ Service = @('MicrosoftGraph', 'MicrosoftGraph'); Type = 'Mail' } `
+            -From 'sender@example.org' -To 'recipient@example.org' -Subject 'Test subject' -Body 'Test body')
+
+        $Result.Count | Should -Be 2
+        InModuleScope ScriptMessage {
+            @($script:StandInCalls | Where-Object { $_ -eq 'Connect' }).Count | Should -Be 2
+            @($script:StandInCalls | Where-Object { $_ -eq 'Send' }).Count | Should -Be 2
         }
     }
 }

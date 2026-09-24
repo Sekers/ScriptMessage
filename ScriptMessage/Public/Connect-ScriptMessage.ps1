@@ -12,9 +12,6 @@ function Connect-ScriptMessage
 
         .PARAMETER Service
         Specify the messaging service to connect to.
-        .PARAMETER ServiceConfig
-        Optional. The messaging service's section of the configuration file, for a caller that has already read it.
-        If not provided, the configuration file is read.
         .PARAMETER ReturnConnectionInfo
         Returns connection information after performing function.
 
@@ -24,7 +21,8 @@ function Connect-ScriptMessage
         Connect-ScriptMessage -Service MicrosoftGraph -ReturnConnectionInfo
     #>
 
-    [CmdletBinding()]
+    # Named parameters only. With no Position declared anywhere, PowerShell would otherwise make -Service positional.
+    [CmdletBinding(PositionalBinding = $false)]
     param(
         [Parameter(
         Mandatory = $true,
@@ -32,27 +30,17 @@ function Connect-ScriptMessage
         ValueFromPipelineByPropertyName = $true)]
         [MessagingService]$Service,
 
-        [Parameter(
-        Mandatory = $false,
-        ValueFromPipelineByPropertyName = $true)]
-        [pscustomobject]$ServiceConfig,
-
         [parameter(
-        Position=1,
-        Mandatory=$false,
-        ValueFromPipeline=$true,
-        ValueFromPipelineByPropertyName=$true)]
+        Mandatory=$false)]
         [switch]$ReturnConnectionInfo
     )
 
-    # Set the connection parameters. A caller that has already read the configuration file passes the service's
-    # section, which is what keeps one send to a single read of the file.
-    if (-not $PSBoundParameters.ContainsKey('ServiceConfig'))
-    {
-        $ServiceConfig = Get-ScriptMessageConfig -Service $Service
-    }
+    # Set the connection parameters. The file's path comes with the settings, so the service can resolve a relative
+    # path in them from the file's folder.
+    $ServiceConfig = Get-ScriptMessageConfig -Service $Service -ReturnConfigFilePath
     $ConnectionParameters = @{
-        ServiceConfig = $ServiceConfig
+        ServiceConfig  = $ServiceConfig
+        ConfigFilePath = $ServiceConfig.ConfigFilePath
     }
 
     # Connect to the proper service. Each service checks for the modules its allowed message types need.

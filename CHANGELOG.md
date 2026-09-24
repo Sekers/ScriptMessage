@@ -4,14 +4,24 @@
 
 ### Added
 
-- New Parameter: `Send-ScriptMessage -MailType` > Chooses how an email with more than one recipient is sent. It overrides the configuration file's `MailType` setting, and `Group` is used when neither one sets it.
+- `Send-ScriptMessage -MailType` and the configuration file's `MailType` setting choose how an email with more than one recipient is sent. `-MailType` overrides the setting, and `Group` is used when neither one sets it.
   - `Group` sends one email to all of the To, CC, and BCC recipients.
   - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
 - New Parameter: `Get-ScriptMessageConfig -ReturnConfigFilePath` > Adds a `ConfigFilePath` property to the returned settings, holding the full path of the configuration file that was read.
+- `MgApp_CertificatePath` can now be relative to the configuration file's folder, so a certificate file kept beside the configuration file can be given as just its name, such as `PrivateKeyCertificate.pfx`.
+- Certificate file authentication, with `MgApp_AuthenticationType` set to `CertificateFile`, now works on Windows PowerShell 5.1. It no longer needs PowerShell 7.4 or later, where `Connect-ScriptMessage` and `Send-ScriptMessage` stopped with "Connecting to Microsoft Graph using a certificate file is only supported with PowerShell version 7.4 and later."
 
 ### Changed
 
 - Importing ScriptMessage again with `Import-Module -Force`, or removing and importing it, now clears the configuration file path set by `Set-ScriptMessageConfigFilePath`. Call `Set-ScriptMessageConfigFilePath` after importing the module.
+
+### Deprecated
+
+- Finding a relative `MgApp_CertificatePath` in PowerShell's current location is deprecated. When the file isn't in the configuration file's folder but is in the current location, ScriptMessage still uses it and shows a warning; the next major version will look only in the configuration file's folder. Move the file there, or set `MgApp_CertificatePath` to the file's full path.
+
+### Removed
+
+- `Send-ScriptMessage` no longer accepts pipeline input, which never sent the intended message: a piped value was bound to several parameters at once, such as the recipients, the sender, and the attachments. Piped input is now reported as an error and nothing is sent.
 
 ### Fixed
 
@@ -23,10 +33,12 @@
 - Minor: The help for `Get-ScriptMessageConfig` and `Set-ScriptMessageConfigFilePath` now describes the `-Path` parameter, which it left blank.
 - Minor: The fourth `Send-ScriptMessage` help example, which sends attachments held in variables, now runs as written. It failed with "Missing closing ')' in subexpression" when copied, and it ended without calling `Send-ScriptMessage`.
 - Minor: `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` now say why a configuration file could not be used.
+- Minor: With `MgApp_AuthenticationType` set to `CertificateFile`, a certificate file that doesn't exist is now reported by its path instead of as a missing password.
 
 ### Security
 
 - `MgApp_CertificatePath` ran any PowerShell code written into it, so anyone who could edit the configuration file could run commands as the account sending messages. This affected every configuration file on PowerShell 7.4 and later, whatever authentication it was set up for. Only environment variables written as `$env:NAME` or `${env:NAME}` are expanded now, and the rest of the path is used exactly as written.
+- With `MgApp_AuthenticationType` set to `CertificateFile`, connecting on PowerShell 7 left a copy of the certificate's private key in the profile of the account running the script, under `%APPDATA%\Microsoft\Crypto\Keys`: one more copy for each PowerShell session that connected, whether or not it disconnected. The private key is now kept only in memory. Copies left by earlier versions stay where they are.
 
 ---
 

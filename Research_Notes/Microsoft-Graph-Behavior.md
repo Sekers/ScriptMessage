@@ -222,10 +222,10 @@ managed identity, and environment variable sign-ins, and to `CurrentUser` only f
 process's connection whatever kind it was. `AuthenticationHelpers.LogoutAsync`, which `Disconnect-MgGraph` calls,
 clears the in-memory token cache, clears the connection, and deletes `mg.authrecord.json`.
 
-**From source:** `Send-ScriptMessage` runs `Connect-ScriptMessage` before every send, and `Disconnect-MgGraph`
-after it only when the configuration's `MgDisconnectWhenDone` is true, so a configuration without the setting
-stays connected. `Connect-ScriptMessage_MicrosoftGraph` passes no `-ContextScope`, so every application
-authentication type gets `Process` scope.
+**From source:** `Send-ScriptMessage` runs `Connect-ScriptMessage_MicrosoftGraph` before every send, and
+`Disconnect-MgGraph` after it only when the configuration's `MgDisconnectWhenDone` is true, so a configuration
+without the setting stays connected. `Connect-ScriptMessage_MicrosoftGraph` passes no `-ContextScope`, so every
+application authentication type gets `Process` scope.
 
 **Inference, for `MgDisconnectWhenDone` with application permissions:**
 

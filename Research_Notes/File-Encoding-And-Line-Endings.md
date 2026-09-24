@@ -165,9 +165,9 @@ code page for a file with no byte order mark.
   covers UTF-8 with and without a BOM, UTF-16 LE with a BOM, and the legacy code page.
 - **From source:** the only configuration settings that hold free text are `MgApp_CertificateName` and
   `MgApp_CertificatePath`; the rest are GUIDs, a thumbprint, booleans, names from a fixed set, and encrypted
-  strings. `Connect-ScriptMessage_MicrosoftGraph` uses `MgApp_CertificatePath` only for `CertificateFile`
-  authentication, which throws before PowerShell 7.4, so on 5.1 only `MgApp_CertificateName` can be misread in a
-  way that matters. On PowerShell 7 both settings can be misread from a legacy code page file.
+  strings. With the `1.1.0` reader, a misread character mattered in `MgApp_CertificateName` in either edition, but
+  in `MgApp_CertificatePath` only on PowerShell 7, because `CertificateFile` authentication, the only use of that
+  setting, needed PowerShell 7.4 through `1.1.1`.
 
 **What this does not establish:**
 

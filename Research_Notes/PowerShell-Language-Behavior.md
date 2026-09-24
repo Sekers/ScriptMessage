@@ -111,16 +111,27 @@ replaced by stand-ins inside the module, passed `...\ScriptMessage\Services\Conf
 **From source:** every release from `1.0.0` to `1.1.1` passed `MgApp_CertificatePath` through `ExpandString` in a
 function defined in the module's `Services` folder (`MgGraph.ps1`, then `MicrosoftGraph.ps1`), so that setting
 ran any code written into it, and `$PSScriptRoot` in it meant the module's `Services` folder.
-`Connect-ScriptMessage_MicrosoftGraph` now expands only `$env:NAME` and `${env:NAME}` in that setting, with a
-`-replace` that looks each name up with `[Environment]::GetEnvironmentVariable`, and uses the rest as written. A
-scriptblock replacement needs PowerShell 6 or later, which is safe there because certificate file
-authentication throws before PowerShell 7.4.
+`Connect-ScriptMessage_MicrosoftGraph` now expands only `$env:NAME` and `${env:NAME}` in that setting, with
+`[regex]::Replace` and a `MatchEvaluator` that looks each name up with `[Environment]::GetEnvironmentVariable`, and
+expands nothing else. It then resolves a relative result from the configuration file's folder, as section 13
+describes.
+
+The replacement was measured in both editions on **2026-09-23**, expanding `$env:SM_TEST_CERTS\app.pfx` with that
+variable set to `C:\Certs` and the pattern `\$\{env:([^}]+)\}|\$env:(\w+)`:
+
+| Replacement | Windows PowerShell 5.1 | PowerShell 7 |
+| --- | --- | --- |
+| `-replace $Pattern, { ... }` | no error; the scriptblock's own text became the replacement, so the result was a space followed by `[Environment]::GetEnvironmentVariable($env:SM_TEST_CERTS\app.pfx.Groups[` and more | `C:\Certs\app.pfx` |
+| `[regex]::Replace($Setting, $Pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) ... })` | `C:\Certs\app.pfx` | `C:\Certs\app.pfx` |
+
+So a `-replace` scriptblock gives a wrong path under 5.1 without any error. The module used one while certificate
+file authentication needed PowerShell 7.4, and switched to `[regex]::Replace` when it stopped needing it.
+[Certificate-File-Behavior.md](./Certificate-File-Behavior.md) covers the rest of that change.
 
 ### What this does not establish
 
 - The scope table comes from the stand-in module. Only `$PSScriptRoot` was checked against the real function.
-- Windows PowerShell 5.1 was not run. The setting is unused there, since certificate file authentication needs
-  PowerShell 7.4 or later.
+- Only the replacement table above was run under Windows PowerShell 5.1, not the scope table.
 - **Unverified:** why a calling script's variables are visible under `pwsh -File`. The results fit `-File`
   running the script in the global scope, but that is inferred, not traced.
 
@@ -136,10 +147,12 @@ With `$Config = [pscustomobject]@{ MicrosoftGraph = 'cfg' }`:
 A one-element array works as the property name, so code that looks a property up by a variable holding service
 names works while there is one service and silently returns nothing once there are two.
 
-**From source:** `Send-ScriptMessage` looks up each service's configuration with
+**From source:** every release up to `1.1.1` had `Send-ScriptMessage` look up each service's configuration with
 `$ScriptMessageConfig.$($serviceTypeObj.Service)`, where `Service` is an array holding every requested service.
+`Send-ScriptMessage` now loops over the services in each `MessageServiceType` and looks each one up by its
+registered name, a single string.
 
-## 6. Measured: without a `process` block, piped input binds only the last item
+## 6. Measured: pipeline input, positional binding, and the `process` block
 
 Piping `'a','b','c'` into an advanced function whose parameter has `ValueFromPipeline = $true`:
 
@@ -148,9 +161,65 @@ Piping `'a','b','c'` into an advanced function whose parameter has `ValueFromPip
 | no `process` block | runs once, with `c` |
 | a `process { }` block | runs three times, with `a`, `b`, and `c` |
 
-**From source:** every function in `ScriptMessage/Public/` declares `ValueFromPipeline = $true` on its
-parameters and none has a `process` block, so piping several objects into any of them acts on the last object
-only.
+The rest of this section was measured on **2026-09-23**, same machine and editions as the header, both agreeing on
+every result, in standalone functions or with this module's service handlers and configuration read replaced inside
+the module, so nothing connected or sent.
+
+**Input nothing can bind.** Piping `'x','y'` into a function with no pipeline parameters writes one error per item,
+`InputObjectNotBound`:
+
+| Function | Error preference | Result |
+| --- | --- | --- |
+| no `process` block | `Continue` | the errors, then the body runs once anyway |
+| a `process` block | `Continue` | the errors; the body never runs |
+| either | `Stop` | throws `InputObjectNotBound`; the body never runs |
+
+For a function in a module, the preference that applies is `-ErrorAction` on the call, or else the global
+`$ErrorActionPreference`, never a caller's local one: a caller that set `Stop` in its own scope still got a
+non-terminating error. `-ErrorVariable` on the call did not collect the error; `2>&1` did.
+
+**Switches.** A switch that declares `ValueFromPipeline` binds a piped `$true` or `$false`, but not a string. A
+`Position` on a switch is honored: a positional `$true` turns it on, and a positional string fails with
+`ParameterArgumentTransformationError`. When no parameter declares a `Position`, PowerShell numbers the others from
+0 itself, so removing the only declared one made `Connect-ScriptMessage -Service` positional;
+`[CmdletBinding(PositionalBinding = $false)]` stops that.
+
+**What piping into the public functions did through `1.1.1`.** Their parameters were the same as `1.1.1`'s:
+
+| Call | Result |
+| --- | --- |
+| a message object (`Service`, `Type`, `From`, `To`, `Subject`, `Body`) piped to `Send-ScriptMessage` | the object bound by value to `To`, `CC`, `BCC`, `Body`, and `Attachment` at once; stopped with "provide at least one ... To, CC, or BCC" |
+| an address or file path piped to `Send-ScriptMessage`, with the rest named | a missing file: "Invalid path to attachment"; an existing file reached the service as the attachment and also as `CC`, `BCC`, `ReplyTo`, and `SenderId` |
+| an attachment hashtable piped the same way | reached the service with `SenderId` set to the text `System.Collections.Hashtable` |
+| `$true` or `$false` piped the same way | stopped with "Unexpected attachment object type." |
+| `Connect-ScriptMessage MicrosoftGraph` | failed: the switch at position 1 took the service name |
+| `$true \| Connect-ScriptMessage -Service MicrosoftGraph`, or a positional `$true` | returned connection information; `Disconnect-ScriptMessage` behaved the same |
+| `'MicrosoftGraph' \| Get-ScriptMessageConfig` | tried to read a file named `MicrosoftGraph` |
+
+**Pipeline input by property name, for a possible later `Send-ScriptMessage`.** A stand-in with `Send-ScriptMessage`'s
+parameter types, every one taking pipeline input by property name only, and a `process` block, sent one message
+per piped object, took what an object lacked from named parameters, and left a named-only call unchanged. Two things
+carried over from one piped object to the next, as another project's notes had reported:
+
+- `$PSBoundParameters` keeps the keys of earlier objects, so `ContainsKey()` answers for an earlier object.
+- A value the body writes back into a parameter variable stays for the next object, unless that object supplies
+  the parameter or the previous object supplied it from the pipeline; either resets it.
+
+**From source:** `Send-ScriptMessage` takes no pipeline input and runs its body in a `process` block, so piped input
+sends nothing. No switch takes pipeline input or a position, and `Connect-ScriptMessage` and
+`Disconnect-ScriptMessage` set `PositionalBinding = $false`. `Tests/ScriptMessage.Module.Tests.ps1` holds those
+rules. `-Service` on `Connect-ScriptMessage`, `Disconnect-ScriptMessage` and `Get-ScriptMessageContext`, `-Path` and
+`-Service` on `Get-ScriptMessageConfig`, and `-Path` on `Set-ScriptMessageConfigFilePath` still take pipeline input
+with no `process` block, so the last piped object wins; each acts on one service or one path. Before
+`Send-ScriptMessage` takes pipeline input, its body must stop writing back into `$From`, `$ReplyTo`, `$To`, `$CC`,
+`$BCC`, `$Body`, `$Attachment`, `$Service`, `$Type`, and `$ServiceType`, and stop reading `$PSBoundParameters` for
+`ChatType` and `MailType`.
+
+### What this does not establish
+
+- Whether any script piped into these functions. Nothing in the help, README, or wiki shows it.
+- What Microsoft Graph did with the piped hashtable's sender; nothing was sent.
+- Only strings, one kind of object, a hashtable, and booleans were piped.
 
 ## 7. Measured: `System.Web.HttpUtility` and URL encoding
 
@@ -438,3 +507,77 @@ read the path; `Get-ScriptMessageConfig -ReturnConfigFilePath` is.
 
 - Two versions of the module loaded side by side, and `Import-Module -Scope Local`, were not tested.
 - Other runspaces (jobs, `ForEach-Object -Parallel`) were not tested.
+
+## 13. Measured: which paths .NET and PowerShell count as absolute
+
+Measured on **2026-09-23** on Windows 11 (10.0.26200) with PowerShell **7.6.6** only, in a standalone advanced
+function with the module not imported. PowerShell's current location was the temporary folder, and `MyCerts:` was
+a FileSystem drive created with `New-PSDrive`.
+
+| Path | `Split-Path -IsAbsolute` | `IsPSAbsolute()` | `[System.IO.Path]::IsPathRooted()` | `IsPathFullyQualified()` |
+| --- | --- | --- | --- | --- |
+| `app.pfx`, `.\app.pfx`, `..\app.pfx`, `sub\app.pfx` | `False` | `False` | `False` | `False` |
+| `C:\Certs\app.pfx` | `True` | `True` | `True` | `True` |
+| `C:app.pfx` | `True` | `True` | `True` | `False` |
+| `\Certs\app.pfx`, `/Certs/app.pfx` | `False` | `False` | `True` | `False` |
+| `\\server\share\app.pfx` | `False` | `False` | `True` | `True` |
+| `~\app.pfx` | `False` | `False` | `False` | `False` |
+| `MyCerts:\app.pfx`, `Env:\TEMP` | `True` | `True` | `False` | `False` |
+| `Microsoft.PowerShell.Core\FileSystem::C:\Certs\app.pfx` | `True` | `True` | `False` | `False` |
+
+`IsPSAbsolute()` is `$PSCmdlet.SessionState.Path.IsPSAbsolute()`, and it agreed with `Split-Path -IsAbsolute` on
+every row. So PowerShell does not count a UNC path, a path from the root of the current drive, or `~` as
+absolute, and .NET does not count a PowerShell drive or a provider-qualified path.
+`GetUnresolvedProviderPathFromPSPath` resolved `~\app.pfx` to the home folder, not the current location.
+
+`IsPSAbsolute()` counts anything before a colon as a drive, whether or not that drive exists: it returned `True`
+for `Q:\app.pfx`, `NoSuchDrive:\app.pfx`, `cert:app.pfx`, `app.pfx:stream`, and `http://example.com/app.pfx`. It
+threw for none of the inputs tried, including an empty string and a single space, which both returned `False`.
+
+Later the same day, `IsPSAbsolute()` and `IsPathRooted()` gave the same results under Windows PowerShell
+5.1.26100.9444 as under PowerShell 7 for `app.pfx`, `..\app.pfx`, `C:\Certs\app.pfx`, `C:app.pfx`, `\Certs\app.pfx`,
+`\\server\share\app.pfx`, `~\app.pfx`, a FileSystem drive path, the provider-qualified path above, an empty string,
+and `NoSuchDrive:\app.pfx`.
+
+**From source:** `Connect-ScriptMessage_MicrosoftGraph` treats `MgApp_CertificatePath`, after expanding environment
+variables, as relative only when `IsPathRooted()` and `IsPSAbsolute()` both return `False` and it does not start
+with `~`. When the settings came from a configuration file, it looks for a relative path in that file's folder,
+and uses the path as written (so relative to PowerShell's current location) only when the file is missing from the
+folder but present in the current location, with a deprecation warning.
+
+### What this does not establish
+
+- Under Windows PowerShell 5.1, only `IsPSAbsolute()` and `IsPathRooted()` were run, for the inputs listed above.
+- Linux and macOS were not run, so how `~/app.pfx` or a path with backslashes classifies there is unmeasured.
+- `Get-PfxCertificate -FilePath` was never called with any of these paths; only the classification was measured.
+
+## 14. Measured: output written before a terminating error
+
+Measured on **2026-09-23**, same machine and editions as the header, in a standalone script with the module not
+imported. Both editions agreed on every row. Two advanced functions each wrote one object and then stopped: one with
+`throw`, and one by calling a function that uses `Write-Error` with `-ErrorAction Stop`, the way `Send-ScriptMessage`
+calls a service's connect handler. Both gave the same results.
+
+| How the caller ran the function | What the caller kept |
+| --- | --- |
+| `$r = f`, inside `try`/`catch` | nothing; `$r` kept its earlier value |
+| `$r = @(f)`, inside `try`/`catch` | nothing |
+| `f -OutVariable r` | the object |
+| `f \| ForEach-Object { ... }` | the object, processed before the error arrived |
+| `$r = try { f } catch { 'caught' }` | the object, followed by what the `catch` block wrote |
+| `f -ErrorAction SilentlyContinue` | nothing; the function still stopped |
+
+So a terminating error discards everything the command wrote to an assignment, while the pipeline, `-OutVariable`,
+and an assigned `try` statement keep what came before it. The caller's `-ErrorAction` does not help, because both
+functions stop whatever the caller's preference is.
+
+**From source:** `Send-ScriptMessage` connects and sends one service at a time and calls each connect handler with
+`-ErrorAction Stop`. When a later service fails to connect, a script that assigns its output loses the results of
+the services that already sent, although their messages went out, and the services after it are not tried. The
+TODO on the send loop covers this. Nothing can reach it while `MicrosoftGraph` is the only service.
+
+### What this does not establish
+
+- Only `throw` and `Write-Error -ErrorAction Stop` were tried; `$PSCmdlet.ThrowTerminatingError()` and a `trap`
+  statement were not.
+- The functions were called directly, not through `Send-ScriptMessage`, which cannot reach this with one service.

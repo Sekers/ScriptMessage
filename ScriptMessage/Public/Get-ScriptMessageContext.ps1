@@ -32,9 +32,7 @@ function Get-ScriptMessageContext
         [MessagingService]$Service,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [Switch]$ReturnCachedContext
     )
     

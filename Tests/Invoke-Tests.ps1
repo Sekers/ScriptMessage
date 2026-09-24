@@ -4,7 +4,8 @@
     test fails.
 
     .DESCRIPTION
-    Each edition runs the tests in its own child process, so both import the module from scratch. Both editions
+    It first prints a plan: the Pester version, the editions in the order they run, and the test files. Each
+    edition runs the tests in its own child process, so both import the module from scratch. Both editions
     need Pester 5 or later. When either edition does not have it, or when -UsePinnedPester is given, both use a
     pinned Pester version, which is saved once to a temporary folder with Save-PSResource (this needs PowerShell 7).
 
@@ -137,18 +138,45 @@ foreach ($Executable in $Editions.Values)
 
 # Use the installed Pester when every edition has version 5 or later. Otherwise use the pinned version for all of
 # them, so both editions always run the same Pester.
-$NeedsPinnedPester = [bool]$UsePinnedPester
-if (-not $NeedsPinnedPester)
+$WithoutPester = @()
+if (-not $UsePinnedPester)
 {
-    foreach ($Executable in $Editions.Values)
+    foreach ($Name in $Editions.Keys)
     {
-        Invoke-Stage -Executable $Executable -StageName 'CheckPester'
+        Invoke-Stage -Executable $Editions[$Name] -StageName 'CheckPester'
         if ($LASTEXITCODE -ne 0)
         {
-            $NeedsPinnedPester = $true
+            $WithoutPester += $Name
         }
     }
 }
+$NeedsPinnedPester = $UsePinnedPester -or ($WithoutPester.Count -gt 0)
+
+if ($UsePinnedPester)
+{
+    $PesterPlan = "$PinnedPesterVersion, pinned by -UsePinnedPester"
+}
+elseif ($NeedsPinnedPester)
+{
+    $PesterPlan = "$PinnedPesterVersion, pinned because Pester 5 or later is not installed in $($WithoutPester -join ' and ')"
+}
+else
+{
+    $PesterPlan = 'the installed Pester 5 or later in each edition'
+}
+
+# Pester finds these itself; they are listed only so the plan says what each edition will run.
+$TestFiles = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.Tests.ps1' -File -Recurse)
+
+Write-Host '===== Plan ====='
+Write-Host "Pester:   $PesterPlan"
+Write-Host "Editions: $($Editions.Keys -join ', then '), each in its own process"
+Write-Host "Tests:    $($TestFiles.Count) files, all run under each edition"
+foreach ($File in $TestFiles)
+{
+    Write-Host "          $($File.Name)"
+}
+Write-Host 'A test that applies to one edition only is reported as skipped in the other, with the reason.'
 
 $PesterManifest = ''
 if ($NeedsPinnedPester)
@@ -162,6 +190,7 @@ if ($NeedsPinnedPester)
             throw "Pester 5 or later is not installed, and PowerShell 7 is needed to save Pester $PinnedPesterVersion. Install either one."
         }
 
+        Write-Host ''
         Write-Host "Saving Pester $PinnedPesterVersion to $SaveRoot"
         Invoke-Stage -Executable 'pwsh' -StageName 'SavePester' -StagePesterPath $SaveRoot
         if (($LASTEXITCODE -ne 0) -or (-not (Test-Path -LiteralPath $PesterManifest)))

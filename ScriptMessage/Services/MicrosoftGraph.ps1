@@ -255,7 +255,13 @@ function Connect-ScriptMessage_MicrosoftGraph
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [pscustomobject]$ServiceConfig
+        [pscustomobject]$ServiceConfig,
+
+        # The full path of the configuration file the settings came from.
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipelineByPropertyName = $true)]
+        [string]$ConfigFilePath
     )
 
     # Collect the connection settings from the service configuration.
@@ -365,37 +371,69 @@ function Connect-ScriptMessage_MicrosoftGraph
             switch ($MgApp_AuthenticationType)
             {
                 CertificateFile {
-                    # This is only supported using PowerShell 7.4 and later because 5.1 is missing the necessary parameters when using 'Get-PfxCertificate'.
-                    if ($PSVersionTable.PSVersion -lt [Version]'7.4')
+                    # Expand only environment variables, so the configuration file cannot run code. This uses
+                    # [regex]::Replace because Windows PowerShell 5.1 turns a -replace scriptblock into text.
+                    $MgApp_CertificatePath = [regex]::Replace([string]$ServiceConfig.MgApp_CertificatePath, '\$\{env:([^}]+)\}|\$env:(\w+)',
+                        [System.Text.RegularExpressions.MatchEvaluator]{
+                            param($Match)
+                            [Environment]::GetEnvironmentVariable($Match.Groups[1].Value + $Match.Groups[2].Value)
+                        })
+
+                    # A relative path is resolved from the configuration file's folder. .NET does not count a
+                    # PowerShell drive as absolute and PowerShell does not count a UNC path, so a path is relative
+                    # only when neither does; '~' is the home folder. Without a configuration file path, a relative
+                    # path resolves from the current location.
+                    $DriveName = $null
+                    $IsRelativePath = -not ([string]::IsNullOrWhiteSpace($MgApp_CertificatePath) -or
+                        [System.IO.Path]::IsPathRooted($MgApp_CertificatePath) -or
+                        $PSCmdlet.SessionState.Path.IsPSAbsolute($MgApp_CertificatePath, [ref]$DriveName) -or
+                        $MgApp_CertificatePath.StartsWith('~'))
+                    if ($IsRelativePath -and -not [string]::IsNullOrEmpty($ConfigFilePath))
                     {
-                        $NewMessage = "Connecting to Microsoft Graph using a certificate file is only supported with PowerShell version 7.4 and later."
-                        throw $NewMessage
-                    }
-                    
-                    # Expand only environment variables, so the configuration file cannot run code; the rest is used as written.
-                    $MgApp_CertificatePath = $ServiceConfig.MgApp_CertificatePath -replace '\$\{env:([^}]+)\}|\$env:(\w+)', {
-                        [Environment]::GetEnvironmentVariable($_.Groups[1].Value + $_.Groups[2].Value)
+                        $ConfigFolder = [System.IO.Path]::GetDirectoryName($ConfigFilePath)
+                        $PathInConfigFolder = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($ConfigFolder, $MgApp_CertificatePath))
+
+                        # Deprecated: a file found only relative to the current location is still used, with a
+                        # warning. Remove this fallback in the next major version.
+                        if (-not (Test-Path -LiteralPath $PathInConfigFolder -PathType Leaf) -and (Test-Path -LiteralPath $MgApp_CertificatePath -PathType Leaf))
+                        {
+                            Write-Warning -Message "The MgApp_CertificatePath file '$MgApp_CertificatePath' was found in PowerShell's current location, not in the configuration file's folder '$ConfigFolder'. Finding a relative path from the current location is deprecated, and the next major version of ScriptMessage will look only in the configuration file's folder. Move the file there, or set MgApp_CertificatePath to the file's full path."
+                        }
+                        else
+                        {
+                            $MgApp_CertificatePath = $PathInConfigFolder
+                        }
                     }
 
-                    # Try accessing private key certificate without password using current process credentials.
-                    [X509Certificate]$MgApp_Certificate = $null
+                    # Load the file with .NET, because Windows PowerShell 5.1's Get-PfxCertificate cannot take a
+                    # password. .NET resolves a relative path against the process directory and knows nothing of
+                    # PowerShell drives, so it gets the full path. EphemeralKeySet keeps the private key in memory;
+                    # otherwise it is written to the user profile, and PowerShell 7 leaves that file behind. New-Object
+                    # rather than ::new() lets the tests mock the load. See Research_Notes/Certificate-File-Behavior.md.
+                    $MgApp_CertificatePath = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($MgApp_CertificatePath)
+                    $CertificateType = 'System.Security.Cryptography.X509Certificates.X509Certificate2'
+                    $KeyStorage = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
                     try
                     {
-                        [X509Certificate]$MgApp_Certificate = Get-PfxCertificate -FilePath $MgApp_CertificatePath -NoPromptForPassword
+                        # A certificate file without a password.
+                        $MgApp_Certificate = New-Object -TypeName $CertificateType -ArgumentList $MgApp_CertificatePath, '', $KeyStorage
                     }
-                    catch # If that doesn't work try the included credentials.
+                    catch # Otherwise use the password from the configuration file.
                     {
+                        if (-not (Test-Path -LiteralPath $MgApp_CertificatePath -PathType Leaf))
+                        {
+                            throw "The Microsoft Graph certificate file named by MgApp_CertificatePath does not exist: '$MgApp_CertificatePath'."
+                        }
+
                         $MgApp_EncryptedCertificatePassword = $ServiceConfig.MgApp_EncryptedCertificatePassword
                         if ([string]::IsNullOrEmpty($MgApp_EncryptedCertificatePassword))
                         {
                             $NewMessage = "Cannot access Microsoft Graph .pfx private key certificate file and no password has been provided."
                             throw $NewMessage
                         }
-                        else
-                        {
-                            [SecureString]$MgApp_EncryptedCertificateSecureString = $MgApp_EncryptedCertificatePassword | ConvertTo-SecureString # Can only be decrypted by the same AD account on the same computer.
-                            [X509Certificate]$MgApp_Certificate = Get-PfxCertificate -FilePath $MgApp_CertificatePath -NoPromptForPassword -Password $MgApp_EncryptedCertificateSecureString
-                        }
+
+                        [SecureString]$MgApp_EncryptedCertificateSecureString = $MgApp_EncryptedCertificatePassword | ConvertTo-SecureString # Can only be decrypted by the same AD account on the same computer.
+                        $MgApp_Certificate = New-Object -TypeName $CertificateType -ArgumentList $MgApp_CertificatePath, $MgApp_EncryptedCertificateSecureString, $KeyStorage
                     }
 
                     $null = Connect-MgGraph -TenantId $MgTenantID -ClientId $MgClientID -Certificate $MgApp_Certificate

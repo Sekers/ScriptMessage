@@ -59,7 +59,7 @@ Describe 'ScriptMessage module' {
     It 'has no PSScriptAnalyzer errors' {
         if ($PSVersionTable.PSEdition -ne 'Core')
         {
-            Set-ItResult -Skipped -Because 'the analyzer check runs under PowerShell 7 only'
+            Set-ItResult -Skipped -Because 'this is Windows PowerShell 5.1, and the analyzer check runs only in the PowerShell 7 run'
         }
 
         $Installed = @(Get-Module -ListAvailable -Name PSScriptAnalyzer)
@@ -86,5 +86,52 @@ Describe 'ScriptMessage module' {
         $Findings = @(Invoke-ScriptAnalyzer -Path $ModuleRoot -Recurse -Severity Error, ParseError)
 
         @($Findings | ForEach-Object { '{0}:{1} {2}' -f $_.ScriptName, $_.Line, $_.RuleName }) | Should -BeNullOrEmpty
+    }
+}
+
+# Rules for the public parameters, so breaking one takes a deliberate change here. Section 6 of
+# Research_Notes/PowerShell-Language-Behavior.md has the measurements behind them.
+Describe 'ScriptMessage public parameters' {
+    BeforeAll {
+        Import-Module $ManifestPath -Force
+        $Common = [System.Management.Automation.PSCmdlet]::CommonParameters + [System.Management.Automation.PSCmdlet]::OptionalCommonParameters
+        $PublicParameters = foreach ($Command in (Get-Command -Module ScriptMessage))
+        {
+            foreach ($Parameter in ($Command.Parameters.Values | Where-Object { $_.Name -notin $Common }))
+            {
+                foreach ($Attribute in $Parameter.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] })
+                {
+                    [pscustomobject]@{
+                        Name       = "$($Command.Name) -$($Parameter.Name)"
+                        IsSwitch   = $Parameter.SwitchParameter
+                        Pipeline   = $Attribute.ValueFromPipeline -or $Attribute.ValueFromPipelineByPropertyName
+                        Positional = $Command.Parameters[$Parameter.Name].ParameterSets.Values.Position -ne [int]::MinValue
+                    }
+                }
+            }
+        }
+    }
+
+    AfterAll {
+        Remove-Module ScriptMessage -Force -ErrorAction SilentlyContinue
+    }
+
+    # A piped or positional $true or $false binds to a switch that allows it, so a switch never does.
+    It 'gives no switch pipeline input or a position' {
+        @($PublicParameters | Where-Object { $_.IsSwitch -and ($_.Pipeline -or $_.Positional) } | ForEach-Object Name) |
+            Should -BeNullOrEmpty
+    }
+
+    # One piped object used to bind to several parameters at once. Taking pipeline input by property name, which
+    # can be added later, needs the process block to stop reusing values from one piped object for the next.
+    It 'gives Send-ScriptMessage no pipeline input' {
+        @($PublicParameters | Where-Object { $_.Name -like 'Send-ScriptMessage *' -and $_.Pipeline } | ForEach-Object Name) |
+            Should -BeNullOrEmpty
+    }
+
+    # Named only, as in 1.1.1. A position would be new public input.
+    It 'gives Connect-ScriptMessage and Disconnect-ScriptMessage no positional parameters' {
+        @($PublicParameters | Where-Object { $_.Name -match '^(Connect|Disconnect)-ScriptMessage ' -and $_.Positional } | ForEach-Object Name) |
+            Should -BeNullOrEmpty
     }
 }

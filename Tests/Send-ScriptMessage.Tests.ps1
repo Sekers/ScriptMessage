@@ -40,7 +40,7 @@ Describe 'Send-ScriptMessage recipient check' {
             # MicrosoftGraph is enum value 0, which is false, so compare with $null rather than testing $Service.
             if ($null -ne $Service) { $Config.$Service } else { $Config }
         }
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
 
         $MessageArguments = @{
@@ -99,19 +99,73 @@ Describe 'Send-ScriptMessage recipient check' {
             @{ Name = 'a hashtable with a blank Address'; To = @{ Name = 'A'; Address = '' } }
         ) {
             { Send-ScriptMessage @MessageArguments -To $To } | Should -Throw '*at least one parameter value*'
-            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
         }
 
         It 'throws when no To, CC, or BCC is given' {
             { Send-ScriptMessage @MessageArguments } | Should -Throw '*at least one parameter value*'
-            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
         }
+    }
+}
+
+Describe 'Send-ScriptMessage pipeline input' {
+    BeforeAll {
+        Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+            $Config = [pscustomobject]@{
+                MicrosoftGraph = [pscustomobject]@{
+                    AllowableMessageTypes = @('Mail')
+                    MgPermissionType      = 'Application'
+                    MgDisconnectWhenDone  = $false
+                }
+            }
+            if ($null -ne $Service) { $Config.$Service } else { $Config }
+        }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $MessageArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Mail'
+            From    = 'sender@example.org'
+            To      = 'recipient@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    # No parameter takes pipeline input. When the binding error does not stop the call, only the process block keeps
+    # the body from running anyway and sending without the piped value, as it would an attachment meant for the
+    # message. When it does, the call throws before any of it runs. The error follows -ErrorAction or the global
+    # preference, never a caller's local one, so these tests pass -ErrorAction to stay independent of the runner's.
+    It 'reports <Name> and sends nothing' -ForEach @(
+        @{ Name = 'a piped file path'; Piped = 'C:\Reports\report.txt' }
+        @{ Name = 'a piped message object'; Piped = [pscustomobject]@{ To = 'other@example.org'; Subject = 'Other' } }
+    ) {
+        # -ErrorVariable does not collect this error, which comes from binding rather than from the command.
+        $Output = @($Piped | Send-ScriptMessage @MessageArguments -ErrorAction Continue 2>&1)
+
+        @($Output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) | Should -BeNullOrEmpty
+        @($Output | Where-Object { $_.FullyQualifiedErrorId -like 'InputObjectNotBound*' }).Count | Should -Be 1
+        Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+    }
+
+    It 'stops a caller whose error preference is Stop, sending nothing' {
+        { 'C:\Reports\report.txt' | Send-ScriptMessage @MessageArguments -ErrorAction Stop } | Should -Throw -ErrorId 'InputObjectNotBound*'
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+    }
+
+    It 'still sends once when nothing is piped' {
+        $null = Send-ScriptMessage @MessageArguments
+
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
     }
 }
 
 Describe 'Send-ScriptMessage chat message' {
     BeforeAll {
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
             [pscustomobject]@{
                 Account = 'sender@example.org'
@@ -276,7 +330,7 @@ Describe 'Send-ScriptMessage mail attachment' {
             }
             if ($null -ne $Service) { $Config.$Service } else { $Config }
         }
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
 
         $MailArguments = @{
@@ -304,7 +358,7 @@ Describe 'Send-ScriptMessage mail attachment' {
 
 Describe 'Send-ScriptMessage mail type' {
     BeforeAll {
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
 
         $MailArguments = @{
@@ -497,8 +551,25 @@ Describe 'Send-ScriptMessage mail type' {
         It 'stops a Mail send before connecting, naming the setting' {
             { Send-ScriptMessage @MailArguments } |
                 Should -Throw "*'MailType' setting*must be one of: OneOnOne, Group*'Individual'*"
-            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
             Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+        }
+
+        # Every entry is checked before connecting, so a Chat entry that could be sent goes nowhere when a later
+        # Mail entry cannot be.
+        It 'stops a send with several -ServiceType entries before connecting for any of them' {
+            $Arguments = $MailArguments.Clone()
+            $Arguments.Remove('Service')
+            $Arguments.Remove('Type')
+            $ServiceType = @(
+                @{ Service = 'MicrosoftGraph'; Type = 'Chat' }
+                @{ Service = 'MicrosoftGraph'; Type = 'Mail' }
+            )
+
+            { Send-ScriptMessage @Arguments -ServiceType $ServiceType } |
+                Should -Throw "*'MailType' setting*'Individual'*"
+            Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 0 -Exactly
         }
 
         # MailType only affects Mail, so a value only Mail would read must not stop a Chat send.
@@ -517,7 +588,7 @@ Describe 'Send-ScriptMessage mail type' {
 
 Describe 'Send-ScriptMessage configuration defaults' {
     BeforeAll {
-        Mock -ModuleName ScriptMessage Connect-ScriptMessage { }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
         Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
             [pscustomobject]@{
                 Account = 'sender@example.org'
@@ -815,8 +886,8 @@ Describe 'Send-ScriptMessage configuration defaults' {
             }
         }
 
-        # Send-ScriptMessage reads the file, then hands the service's section to Connect-ScriptMessage and to
-        # the service, so neither reads it again. Three reads gave a send no single consistent view of its own
+        # Send-ScriptMessage reads the file, then hands the service's section to the service's connect and send
+        # handlers, so neither reads it again. Three reads gave a send no single consistent view of its own
         # settings, because the file can change between them.
         It 'reads the configuration file once for a Mail and Chat send' {
             $Arguments = $ChatArguments.Clone()
@@ -827,9 +898,7 @@ Describe 'Send-ScriptMessage configuration defaults' {
             Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly
         }
 
-        It 'still reads the file when Connect-ScriptMessage is called on its own' {
-            Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
-
+        It 'Connect-ScriptMessage reads the file itself' {
             $null = Connect-ScriptMessage -Service MicrosoftGraph
 
             Should -Invoke -ModuleName ScriptMessage Get-ScriptMessageConfig -Times 1 -Exactly

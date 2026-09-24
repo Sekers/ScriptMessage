@@ -4,6 +4,9 @@ function Register-ScriptMessageService
         Called once by each file in Services/ as it is dot-sourced, so the public cmdlets can dispatch to a
         service without naming it. Handlers are recorded as function NAMES, not as command objects or script
         blocks: the name is resolved at call time, which is what lets Pester's mocks shadow a handler.
+
+        The connect handler takes -ServiceConfig, the service's section of the configuration file, and
+        -ConfigFilePath, the full path of that file.
     #>
 
     [CmdletBinding()]

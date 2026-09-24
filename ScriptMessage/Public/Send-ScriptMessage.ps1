@@ -149,248 +149,242 @@ function Send-ScriptMessage
     param(
         [Parameter(
         ParameterSetName = 'ServiceAndTypeSeparate',
-        Mandatory = $true,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $true)]
         [MessagingService[]]$Service,
 
         [Parameter(
         ParameterSetName = 'ServiceAndTypeSeparate',
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [MessageType[]]$Type = 'Mail',
 
         [Parameter(
         ParameterSetName = 'ServiceAndTypeCombined',
-        Mandatory = $true,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $true)]
         [MessageServiceType[]]$ServiceType,
 
         [Parameter(
-        Mandatory = $true,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $true)]
         [pscustomobject]$From,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [AllowEmptyString()]
         [pscustomobject]$ReplyTo,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [AllowEmptyString()]
         [pscustomobject]$To,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [AllowEmptyString()]
         [pscustomobject]$CC,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [AllowEmptyString()]
         [pscustomobject]$BCC,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [bool]$SaveToSentItems = $true,
 
         [Parameter(
-        Mandatory = $true,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $true)]
         [string]$Subject,
 
         [Parameter(
-        Mandatory = $true,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $true)]
         [pscustomobject]$Body,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [array]$Attachment, # Array of Content (bytes), File paths, and/or Directory paths,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [string]$SenderId,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [MailType]$MailType,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [ChatType]$ChatType,
 
         [Parameter(
-        Mandatory = $false,
-        ValueFromPipeline = $true,
-        ValueFromPipelineByPropertyName = $true)]
+        Mandatory = $false)]
         [Nullable[bool]]$IncludeBCCInGroupChat # Nullable so it can be set to $null, meaning "use the configured value"
     )
 
-    # Set the necessary configuration variables.
-    $ScriptMessageConfig = Get-ScriptMessageConfig
-
-    # Convert recipient types into properly formatted PSObject.
-    $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
-    [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo
-    [array]$To = ConvertTo-ScriptMessageRecipientObject -Recipient $To
-    [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC
-    [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
-
-    # Make sure that at least one To, CC, or BCC recipient has an address.
-    $RecipientsWithAddress = @(@($To) + @($CC) + @($BCC) | Where-Object {($null -ne $_) -and (-not [string]::IsNullOrWhiteSpace($_.AddressObj))})
-    if ($RecipientsWithAddress.Count -eq 0)
+    # No parameter takes pipeline input, so piped input is reported as unbound and the process block never runs for
+    # it. Without the block, the body would run anyway and send the message the named parameters describe. It also
+    # runs once per piped object if pipeline input is ever added, and then this body must stop writing its results
+    # back into parameter variables and reading $PSBoundParameters, since both would carry one object's values into
+    # the next. See section 6 of Research_Notes/PowerShell-Language-Behavior.md.
+    process
     {
-        throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
-    }
+        # Set the necessary configuration variables. The file's path comes with them, so a service can resolve a
+        # relative path in its settings from the file's folder.
+        $ScriptMessageConfig = Get-ScriptMessageConfig -ReturnConfigFilePath
 
-    # Convert body into properly formatted PSObject.
-    $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
+        # Convert recipient types into properly formatted PSObject.
+        $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
+        [array]$ReplyTo = ConvertTo-ScriptMessageRecipientObject -Recipient $ReplyTo
+        [array]$To = ConvertTo-ScriptMessageRecipientObject -Recipient $To
+        [array]$CC = ConvertTo-ScriptMessageRecipientObject -Recipient $CC
+        [array]$BCC = ConvertTo-ScriptMessageRecipientObject -Recipient $BCC
 
-    # Convert attachments into properly formatted PSObject.
-    $Attachment = ConvertTo-ScriptMessageAttachmentObject -Attachment $Attachment
-
-    if ($null -ne $Service) # If ServiceAndTypeSeparate
-    {
-        # Remove message service & message type duplicates.
-        $Service = $Service | Select-Object -Unique
-        $Type = $Type | Select-Object -Unique
-
-        # Create the ServiceType class object\hash.
-        [MessageServiceType]$ServiceType = @{
-            Service = $Service
-            Type    = $Type
-        }
-    }
-
-    foreach ($serviceTypeObj in $ServiceType) # TODO: Catch errors once we have multiple services so if one fails the other(s) can still be processed.
-    {
-        # Look the service up first, so an unregistered one stops the call before any other work.
-        $Registration = Get-ScriptMessageServiceRegistration -Service ([string]$serviceTypeObj.Service)
-
-        # Take this service's section out of the configuration read above, using the registered name rather
-        # than the parameter's value: looking a property up by a name held in an array comes back empty.
-        $ServiceConfig = $ScriptMessageConfig.$($Registration.Name)
-        if ($null -eq $ServiceConfig)
+        # Make sure that at least one To, CC, or BCC recipient has an address.
+        $RecipientsWithAddress = @(@($To) + @($CC) + @($BCC) | Where-Object {($null -ne $_) -and (-not [string]::IsNullOrWhiteSpace($_.AddressObj))})
+        if ($RecipientsWithAddress.Count -eq 0)
         {
-            throw "The ScriptMessage configuration file has no `'$($Registration.Name)`' section. Add one for that messaging service, or send from a service the file configures."
+            throw 'Please provide at least one parameter value for any of the following: To, CC, or BCC'
         }
 
-        # Set the connection parameters.
-        $ConnectionParameters = @{
-            ServiceConfig = $ServiceConfig
-        }
+        # Convert body into properly formatted PSObject.
+        $Body = ConvertTo-ScriptMessageBodyObject -Body $Body
 
-        # Set default values for anything the caller did not specify. These test the bound parameters rather than
-        # the values because truthiness cannot tell either parameter apart from an unsupplied one: 'OneOnOne' is
-        # ChatType enum value 0, and $false is a valid 'IncludeBCCInGroupChat' choice. The results go into
-        # separate variables because a parameter keeps its type constraint through later assignments, and
-        # [ChatType] cannot hold the $null of a configuration file that has no 'ChatType' setting.
-        if ($PSBoundParameters.ContainsKey('ChatType'))
-        {
-            $ResolvedChatType = $ChatType
-        }
-        else
-        {
-            $ResolvedChatType = $ConnectionParameters.ServiceConfig.ChatType
-        }
+        # Convert attachments into properly formatted PSObject.
+        $Attachment = ConvertTo-ScriptMessageAttachmentObject -Attachment $Attachment
 
-        # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value", which is also what an
-        # unsupplied [Nullable[bool]] holds. The configured value is an opt-in flag, on only when it equals
-        # $true. Text equals $true only when it reads "true" in any letter case, so anything else, including
-        # the text "false", leaves BCC recipients out. Keep the setting on the left: a [bool] cast, or $true
-        # on the left, reads the text "false" as $true.
-        if ($null -ne $IncludeBCCInGroupChat)
+        if ($null -ne $Service) # If ServiceAndTypeSeparate
         {
-            [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat
-        }
-        else
-        {
-            [bool]$ResolvedIncludeBCCInGroupChat = ($ConnectionParameters.ServiceConfig.IncludeBCCInGroupChat -eq $true)
-        }
+            # Remove message service & message type duplicates.
+            $Service = $Service | Select-Object -Unique
+            $Type = $Type | Select-Object -Unique
 
-        # 'MailType' is resolved only for a send that includes Mail, so a configuration value that only Mail would
-        # use cannot stop a Chat send. 'Group' applies when neither the parameter nor the configuration file sets
-        # one, including the empty string the configuration template uses for a setting it leaves unset, so a
-        # configuration file without the setting sends one message to every recipient.
-        $ResolvedMailType = $null
-        if ($serviceTypeObj.Type -contains [MessageType]::Mail)
-        {
-            $ConfiguredMailType = $ConnectionParameters.ServiceConfig.MailType
-            if ($PSBoundParameters.ContainsKey('MailType'))
-            {
-                $ResolvedMailType = $MailType
-            }
-            elseif ([string]::IsNullOrWhiteSpace($ConfiguredMailType))
-            {
-                $ResolvedMailType = [MailType]::Group
-            }
-            elseif ($ConfiguredMailType -in [Enum]::GetNames([MailType]))
-            {
-                $ResolvedMailType = [MailType]$ConfiguredMailType
-            }
-            else
-            {
-                throw "The `'MailType`' setting in the ScriptMessage configuration file must be one of: $([Enum]::GetNames([MailType]) -join ', '). Found `'$ConfiguredMailType`'."
+            # Create the ServiceType class object\hash.
+            [MessageServiceType]$ServiceType = @{
+                Service = $Service
+                Type    = $Type
             }
         }
 
-        # Connect to the messaging service, if necessary (e.g., API service).
-        Connect-ScriptMessage -Service $($serviceTypeObj.Service) -ServiceConfig $ServiceConfig -ErrorAction Stop
-
-        $SendMessageParameters = [ordered]@{
-            From = $From
-            ReplyTo = $ReplyTo
-            To = $To
-            CC = $CC
-            BCC = $BCC
-            SaveToSentItems = $SaveToSentItems
-            Subject = $Subject
-            Body = $Body
-            Attachment = $Attachment
-            SenderId = $SenderId
-            Type = $serviceTypeObj.Type
-            IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
-            ServiceConfig = $ServiceConfig
-        }
-
-        # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a setting
-        # it leaves unset, so pass it only when there is a real value. A Mail-only send does not need one, and
-        # the service reports a Chat message that has none.
-        if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
+        # Prepare a send for every service before connecting to any of them, so a service that is not registered or
+        # not configured stops the call before a message goes out through another one.
+        $PreparedSends = foreach ($serviceTypeObj in $ServiceType)
         {
-            $SendMessageParameters['ChatType'] = $ResolvedChatType
+            # A MessageServiceType can name several services, and each one gets its own send.
+            foreach ($serviceItem in $serviceTypeObj.Service)
+            {
+                $Registration = Get-ScriptMessageServiceRegistration -Service ([string]$serviceItem)
+
+                # Take this service's section out of the configuration read above.
+                $ServiceConfig = $ScriptMessageConfig.$($Registration.Name)
+                if ($null -eq $ServiceConfig)
+                {
+                    throw "The ScriptMessage configuration file has no `'$($Registration.Name)`' section. Add one for that messaging service, or send from a service the file configures."
+                }
+
+                # Set default values for anything the caller did not specify. These test the bound parameters rather
+                # than the values because truthiness cannot tell either parameter apart from an unsupplied one:
+                # 'OneOnOne' is ChatType enum value 0, and $false is a valid 'IncludeBCCInGroupChat' choice. The
+                # results go into separate variables because a parameter keeps its type constraint through later
+                # assignments, and [ChatType] cannot hold the $null of a configuration file that has no 'ChatType'
+                # setting.
+                if ($PSBoundParameters.ContainsKey('ChatType'))
+                {
+                    $ResolvedChatType = $ChatType
+                }
+                else
+                {
+                    $ResolvedChatType = $ServiceConfig.ChatType
+                }
+
+                # 'IncludeBCCInGroupChat' accepts $null to mean "use the configured value", which is also what an
+                # unsupplied [Nullable[bool]] holds. The configured value is an opt-in flag, on only when it equals
+                # $true. Text equals $true only when it reads "true" in any letter case, so anything else, including
+                # the text "false", leaves BCC recipients out. Keep the setting on the left: a [bool] cast, or $true
+                # on the left, reads the text "false" as $true.
+                if ($null -ne $IncludeBCCInGroupChat)
+                {
+                    [bool]$ResolvedIncludeBCCInGroupChat = $IncludeBCCInGroupChat
+                }
+                else
+                {
+                    [bool]$ResolvedIncludeBCCInGroupChat = ($ServiceConfig.IncludeBCCInGroupChat -eq $true)
+                }
+
+                # 'MailType' is resolved only for a send that includes Mail, so a configuration value that only Mail
+                # would use cannot stop a Chat send. 'Group' applies when neither the parameter nor the configuration
+                # file sets one, including the empty string the configuration template uses for a setting it leaves
+                # unset, so a configuration file without the setting sends one message to every recipient.
+                $ResolvedMailType = $null
+                if ($serviceTypeObj.Type -contains [MessageType]::Mail)
+                {
+                    $ConfiguredMailType = $ServiceConfig.MailType
+                    if ($PSBoundParameters.ContainsKey('MailType'))
+                    {
+                        $ResolvedMailType = $MailType
+                    }
+                    elseif ([string]::IsNullOrWhiteSpace($ConfiguredMailType))
+                    {
+                        $ResolvedMailType = [MailType]::Group
+                    }
+                    elseif ($ConfiguredMailType -in [Enum]::GetNames([MailType]))
+                    {
+                        $ResolvedMailType = [MailType]$ConfiguredMailType
+                    }
+                    else
+                    {
+                        throw "The `'MailType`' setting in the ScriptMessage configuration file must be one of: $([Enum]::GetNames([MailType]) -join ', '). Found `'$ConfiguredMailType`'."
+                    }
+                }
+
+                $SendMessageParameters = [ordered]@{
+                    From = $From
+                    ReplyTo = $ReplyTo
+                    To = $To
+                    CC = $CC
+                    BCC = $BCC
+                    SaveToSentItems = $SaveToSentItems
+                    Subject = $Subject
+                    Body = $Body
+                    Attachment = $Attachment
+                    SenderId = $SenderId
+                    Type = $serviceTypeObj.Type
+                    IncludeBCCInGroupChat = $ResolvedIncludeBCCInGroupChat
+                    ServiceConfig = $ServiceConfig
+                }
+
+                # [ChatType] cannot be bound to $null, nor to the empty string a configuration file uses for a
+                # setting it leaves unset, so pass it only when there is a real value. A Mail-only send does not need
+                # one, and the service reports a Chat message that has none.
+                if (-not [string]::IsNullOrWhiteSpace($ResolvedChatType))
+                {
+                    $SendMessageParameters['ChatType'] = $ResolvedChatType
+                }
+
+                if ($null -ne $ResolvedMailType)
+                {
+                    $SendMessageParameters['MailType'] = $ResolvedMailType
+                }
+
+                [PSCustomObject]@{
+                    Registration          = $Registration
+                    ServiceConfig         = $ServiceConfig
+                    SendMessageParameters = $SendMessageParameters
+                }
+            }
         }
 
-        if ($null -ne $ResolvedMailType)
+        # Connect and send one service at a time. A service reports a failure while sending in its results, but a
+        # failure to connect throws and stops the call.
+        # TODO: Before adding a second service, report a connect failure without stopping the call. As it is, the
+        # services after the one that failed are not tried, which defeats sending through several for redundancy, and
+        # a caller that assigns the output loses the results of the ones before it, even though their messages went
+        # out.
+        foreach ($preparedSend in $PreparedSends)
         {
-            $SendMessageParameters['MailType'] = $ResolvedMailType
-        }
+            # Connect to the messaging service, if necessary (e.g., API service), through its registered handler, the
+            # same one Connect-ScriptMessage uses.
+            & $preparedSend.Registration.ConnectFunction -ServiceConfig $preparedSend.ServiceConfig -ConfigFilePath $ScriptMessageConfig.ConfigFilePath -ErrorAction Stop
 
-        & $Registration.SendFunction @SendMessageParameters
+            $SendMessageParameters = $preparedSend.SendMessageParameters
+            & $preparedSend.Registration.SendFunction @SendMessageParameters
+        }
     }
 }
