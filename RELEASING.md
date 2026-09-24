@@ -215,5 +215,5 @@ enforceable:
 - [ ] The wiki (`Sekers/ScriptMessage.wiki`) describes this release, and its update was pushed after the Release
       workflow passed.
 - [ ] `main` was merged back into `develop` with a merge commit.
-- [ ] Anything that needs a live Microsoft Graph test was tested separately in a test tenant. The automated tests
-      never connect to a tenant.
+- [ ] Anything that needs a live Microsoft Graph test was tested separately, sending messages and files only to
+      accounts the tester controls. The automated tests never connect to a tenant.

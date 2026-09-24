@@ -17,4 +17,4 @@
 - [ ] `CHANGELOG.md` has an entry in the right section under `[Unreleased]` (added if missing), or the change is not user-visible
 - [ ] `.\Tests\Invoke-Tests.ps1` passes
 - [ ] Contains no real tenant names, email domains, secrets, or configuration files
-- [ ] Any live Microsoft Graph testing was done in a test tenant and is described above
+- [ ] Any live Microsoft Graph testing is described above, and sent messages and files only to accounts you control
