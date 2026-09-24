@@ -117,11 +117,22 @@ scriptblock replacement needs PowerShell 6 or later, which is safe there because
 authentication throws before PowerShell 7.4. It then resolves a relative result from the configuration file's
 folder, as section 13 describes.
 
+The replacement was measured in both editions on **2026-09-23**, expanding `$env:SM_TEST_CERTS\app.pfx` with that
+variable set to `C:\Certs` and the pattern `\$\{env:([^}]+)\}|\$env:(\w+)`:
+
+| Replacement | Windows PowerShell 5.1 | PowerShell 7 |
+| --- | --- | --- |
+| `-replace $Pattern, { ... }`, as the module does | no error; the scriptblock's own text became the replacement, so the result was a space followed by `[Environment]::GetEnvironmentVariable($env:SM_TEST_CERTS\app.pfx.Groups[` and more | `C:\Certs\app.pfx` |
+| `[regex]::Replace($Setting, $Pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) ... })` | `C:\Certs\app.pfx` | `C:\Certs\app.pfx` |
+
+So the module's expansion would give a wrong path under 5.1 without any error.
+[Certificate-File-Behavior.md](./Certificate-File-Behavior.md) covers the rest of what certificate file
+authentication needs there.
+
 ### What this does not establish
 
 - The scope table comes from the stand-in module. Only `$PSScriptRoot` was checked against the real function.
-- Windows PowerShell 5.1 was not run. The setting is unused there, since certificate file authentication needs
-  PowerShell 7.4 or later.
+- Only the replacement table above was run under Windows PowerShell 5.1, not the scope table.
 - **Unverified:** why a calling script's variables are visible under `pwsh -File`. The results fit `-File`
   running the script in the global scope, but that is inferred, not traced.
 
@@ -468,6 +479,11 @@ absolute, and .NET does not count a PowerShell drive or a provider-qualified pat
 for `Q:\app.pfx`, `NoSuchDrive:\app.pfx`, `cert:app.pfx`, `app.pfx:stream`, and `http://example.com/app.pfx`. It
 threw for none of the inputs tried, including an empty string and a single space, which both returned `False`.
 
+Later the same day, `IsPSAbsolute()` and `IsPathRooted()` gave the same results under Windows PowerShell
+5.1.26100.9444 as under PowerShell 7 for `app.pfx`, `..\app.pfx`, `C:\Certs\app.pfx`, `C:app.pfx`, `\Certs\app.pfx`,
+`\\server\share\app.pfx`, `~\app.pfx`, a FileSystem drive path, the provider-qualified path above, an empty string,
+and `NoSuchDrive:\app.pfx`.
+
 **From source:** `Connect-ScriptMessage_MicrosoftGraph` treats `MgApp_CertificatePath`, after expanding environment
 variables, as relative only when `IsPathRooted()` and `IsPSAbsolute()` both return `False` and it does not start
 with `~`. When the settings came from a configuration file, it looks for a relative path in that file's folder,
@@ -477,7 +493,6 @@ folder but present in the current location, with a deprecation warning. Settings
 
 ### What this does not establish
 
-- Windows PowerShell 5.1 was not run. The setting is unused there, since certificate file authentication needs
-  PowerShell 7.4 or later.
+- Under Windows PowerShell 5.1, only `IsPSAbsolute()` and `IsPathRooted()` were run, for the inputs listed above.
 - Linux and macOS were not run, so how `~/app.pfx` or a path with backslashes classifies there is unmeasured.
 - `Get-PfxCertificate -FilePath` was never called with any of these paths; only the classification was measured.
