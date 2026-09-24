@@ -406,3 +406,35 @@ empty configuration file reads as `$null` without an error in both editions.
   stopped at, so an unquoted secret would appear in it.
 - What PowerShell 7 builds from the input it accepts but 5.1 rejects was not examined.
 - A file the account has no permission to read was not tested, only a folder given as the path.
+
+## 12. Measured: module-scope state across imports
+
+Measured on **2026-09-22**, same machine and editions as the header. Unlike the other sections, this one imported
+a module, each run in a new `-NoProfile` process: an in-memory module built with `New-Module` for the first and
+last rows, and this repository's module for the rest, loaded through `PSModulePath` so that it loaded automatically. At the
+time, the module kept its cached context in a global variable that the .psm1 recreates on every import, so a
+marker property added to that object showed whether a later import ran the .psm1 again.
+
+| Situation | Result |
+| --- | --- |
+| A function's default parameter value reads `$script:X`, and the function is called from the caller's scope or from a child scope | reads the module's value in both cases; `Get-Variable -Scope Global` does not show the variable |
+| `Import-Module ScriptMessage` without `-Force`, after calling one of its functions loaded it automatically | the .psm1 does not run again; one module instance |
+| Another module's code runs `Import-Module ScriptMessage` while it is loaded | the .psm1 does not run again; still one instance |
+| `Import-Module ScriptMessage -Force` | the .psm1 runs again, so module-scope state starts over; one instance |
+| `(Get-Module ScriptMessage).ExportedVariables` with `VariablesToExport = '*'` in the manifest and no `Export-ModuleMember` in the .psm1 | empty |
+| `& (Get-Module <name>) { $script:X }` from outside the module | returns the module's value |
+
+So module-scope state survives everything except a forced import (or `Remove-Module` followed by an import),
+while a global variable survives even that.
+
+**From source:** `Set-ScriptMessageConfigFilePath` stores the path in `$script:ScriptMessageConfigFilePath`, which
+`ScriptMessage.psm1` declares, and `Get-ScriptMessageConfig` uses it as the default for `-Path`, so importing the
+module again with `-Force` clears the path. `Get-ScriptMessageContext` and `Disconnect-ScriptMessage` share
+`$script:ScriptMessageCachedServiceContext` the same way. `ScriptMessage.psd1` sets `VariablesToExport` to an
+empty list, which the last-but-one row shows changes nothing for callers. The last row is not a supported way to
+read the path; `Get-ScriptMessageConfig -ReturnConfigFilePath` is.
+
+### What this does not establish
+
+- Two versions of the module loaded side by side, and `Import-Module -Scope Local`, were not tested.
+- Other runspaces (jobs, `ForEach-Object -Parallel`) were not tested.

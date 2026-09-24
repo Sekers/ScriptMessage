@@ -7,6 +7,11 @@
 - New Parameter: `Send-ScriptMessage -MailType` > Chooses how an email with more than one recipient is sent. It overrides the configuration file's `MailType` setting, and `Group` is used when neither one sets it.
   - `Group` sends one email to all of the To, CC, and BCC recipients.
   - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
+- New Parameter: `Get-ScriptMessageConfig -ReturnConfigFilePath` > Adds a `ConfigFilePath` property to the returned settings, holding the full path of the configuration file that was read.
+
+### Changed
+
+- Importing ScriptMessage again with `Import-Module -Force`, or removing and importing it, now clears the configuration file path set by `Set-ScriptMessageConfigFilePath`. Call `Set-ScriptMessageConfigFilePath` after importing the module.
 
 ### Fixed
 
@@ -24,6 +29,7 @@
 - `MgApp_CertificatePath` ran any PowerShell code written into it, so anyone who could edit the configuration file could run commands as the account sending messages. This affected every configuration file on PowerShell 7.4 and later, whatever authentication it was set up for. Only environment variables written as `$env:NAME` or `${env:NAME}` are expanded now, and the rest of the path is used exactly as written.
 
 ---
+
 ## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16
 
 ### Changed
@@ -44,6 +50,7 @@
 - Minor: A configuration file whose path contains square brackets, such as a folder named `Scripts [old]`, can now be used. `Get-ScriptMessageConfig`, `Connect-ScriptMessage`, and `Send-ScriptMessage` stopped with "Can't find the JSON configuration file" and sent nothing.
 
 ---
+
 ## [1.1.0](https://github.com/Sekers/ScriptMessage/tree/1.1.0) - (2025-10-16)
 
 ### Fixes
@@ -68,6 +75,7 @@
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.8](https://github.com/Sekers/ScriptMessage/tree/1.0.8) - (2025-09-18)
 
 ### Fixes
@@ -90,6 +98,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.7](https://github.com/Sekers/ScriptMessage/tree/1.0.7) - (2024-12-26)
 
 ### Features
@@ -103,6 +112,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.6](https://github.com/Sekers/ScriptMessage/tree/1.0.6) - (2024-12-19)
 
 ### Fixes
@@ -123,6 +133,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.5](https://github.com/Sekers/ScriptMessage/tree/1.0.5) - (2024-05-22)
 
 ### Features
@@ -132,6 +143,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.4](https://github.com/Sekers/ScriptMessage/tree/1.0.4) - (2024-05-21)
 
 ### Fixes
@@ -141,6 +153,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.3](https://github.com/Sekers/ScriptMessage/tree/1.0.3) - (2024-05-21)
 
 ### Features
@@ -150,6 +163,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.2](https://github.com/Sekers/ScriptMessage/tree/1.0.2) - (2024-05-21)
 
 ### Fixes
@@ -159,6 +173,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.1](https://github.com/Sekers/ScriptMessage/tree/1.0.1) - (2024-05-20)
 
 ### Fixes
@@ -168,6 +183,7 @@ Author: [**@Sekers**](https://github.com/Sekers)
 Author: [**@Sekers**](https://github.com/Sekers)
 
 ---
+
 ## [1.0.0](https://github.com/Sekers/ScriptMessage/tree/1.0.0) - (2024-05-20)
 
 ### Features

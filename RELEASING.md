@@ -22,7 +22,7 @@ uses the stricter Semantic Versioning rule: new functionality, including a new p
 
 ### The public contract
 
-The public contract is anything a caller can observe or depend on:
+The public contract is the behavior ScriptMessage offers its callers:
 
 - Exported functions and aliases, their parameters and parameter sets, and each parameter's requirements,
   defaults, validation, and meaning.
@@ -35,11 +35,23 @@ The public contract is anything a caller can observe or depend on:
 - The external modules the module requires, such as the Microsoft Graph sub-modules each message type needs.
 - The permissions the module requests or needs, such as Microsoft Graph scopes.
 
+A side effect of how the module happens to be built is not part of it, even when a caller can observe it. See
+[Deciding hard cases](#deciding-hard-cases).
+
 ### Deciding hard cases
 
 - **A fix that changes observable behavior** is a patch when the old behavior could not have worked for anyone,
   such as rejecting recipients that have no address, which never sent anything. It is a breaking change when a
   reasonable script could have depended on the old behavior. Either way, the changelog entry says what changed.
+- **Correcting an unintended side effect is not a breaking change.** Behavior that exists only because of how the
+  module was built, and that no documentation ever offered (the help, the README, the wiki, the sample
+  configuration file, or the changelog), is outside the public contract even though a caller can observe or use
+  it. Examples: a variable the module kept in the global scope, where any script could read or change it, and a
+  true/false setting written as quoted text. Changing or removing such behavior needs no deprecation, and the
+  "reasonable script" test above does not apply. Naming something in an error message does not document it.
+  Behavior the module intends callers to use stays in the contract even where its documentation is thin, such as
+  the properties of the `Send-ScriptMessage` result. The change gets a changelog entry only when a script that
+  follows the documentation could notice it.
 - **Requiring a new module or permission is a breaking change**, because existing installations and app
   registrations stop working until someone acts.
 - **Deprecate before removing.** Mark functionality as deprecated in a minor release (documentation, a warning,

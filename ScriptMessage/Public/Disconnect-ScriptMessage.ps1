@@ -44,7 +44,7 @@ function Disconnect-ScriptMessage
     # Drop this service's cached context. 'Get-ScriptMessageContext -ReturnCachedContext' reads that cache, so
     # leaving an entry behind would keep reporting the connection this call just ended. Removing a name the
     # cache does not hold does nothing, which is the case when nothing has asked for the context yet.
-    $ScriptMessage_Global_CachedServiceContext.PSObject.Properties.Remove([string]$Service)
+    $script:ScriptMessageCachedServiceContext.PSObject.Properties.Remove([string]$Service)
 
     # Return the disconnection information, if requested.
     if ($ReturnConnectionInfo)

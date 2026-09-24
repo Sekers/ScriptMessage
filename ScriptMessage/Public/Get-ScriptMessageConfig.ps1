@@ -14,6 +14,8 @@ function Get-ScriptMessageConfig
         Optional. If not provided, the function will use the path used in the current session (if set).
         .PARAMETER Service
         Optional. Return only the info related to a specific service.
+        .PARAMETER ReturnConfigFilePath
+        Adds a ConfigFilePath property to the result, holding the full path of the configuration file that was read.
 
         .EXAMPLE
         Get-ScriptMessageConfig
@@ -21,6 +23,8 @@ function Get-ScriptMessageConfig
         Get-ScriptMessageConfig -Path '.\Config\config_scriptmessage.json'
         .EXAMPLE
         Get-ScriptMessageConfig -Service MicrosoftGraph
+        .EXAMPLE
+        Get-ScriptMessageConfig -Service MicrosoftGraph -ReturnConfigFilePath
     #>
 
     [CmdletBinding()]
@@ -29,20 +33,24 @@ function Get-ScriptMessageConfig
         Position=0,
         ValueFromPipeline=$true,
         ValueFromPipelineByPropertyName=$true)]
-        [string]$Path = $ScriptMessage_Global_ConfigFilePath, # If not entered will see if it can pull path from this variable.
+        [string]$Path = $script:ScriptMessageConfigFilePath, # The path set by Set-ScriptMessageConfigFilePath.
 
         [Parameter(
         Position=1,
         Mandatory = $false,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [MessagingService]$Service
+        [MessagingService]$Service,
+
+        [Parameter(
+        Mandatory = $false)]
+        [switch]$ReturnConfigFilePath
     )
-    
+
     # Make Sure Requested Path Isn't Null or Empty (better to catch it here than validating on the parameter of this function)
     if ([string]::IsNullOrEmpty($Path))
     {
-        throw "`'`$ScriptMessage_Global_ConfigFilePath`' is not specified. Don't forget to first use the `'Set-ScriptMessageConfigFilePath`' cmdlet!"
+        throw "No ScriptMessage configuration file path is set. Run `'Set-ScriptMessageConfigFilePath`' first."
     }
 
     # Read the configuration file.
@@ -93,10 +101,19 @@ function Get-ScriptMessageConfig
 
     if (-not ($null -eq $Service))
     {
-        return $ScriptMessageConfig.$Service
+        $Result = $ScriptMessageConfig.$Service
     }
     else
     {
-        return $ScriptMessageConfig
+        $Result = $ScriptMessageConfig
     }
+
+    # No -Force, so a configuration file that has its own 'ConfigFilePath' setting fails here rather than having it
+    # silently replaced. A missing service section leaves nothing to add the path to.
+    if ($ReturnConfigFilePath -and ($null -ne $Result))
+    {
+        $Result | Add-Member -MemberType NoteProperty -Name 'ConfigFilePath' -Value $FullPath
+    }
+
+    return $Result
 }
