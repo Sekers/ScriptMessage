@@ -19,6 +19,10 @@
 
 - Finding a relative `MgApp_CertificatePath` in PowerShell's current location is deprecated. When the file isn't in the configuration file's folder but is in the current location, ScriptMessage still uses it and shows a warning; the next major version will look only in the configuration file's folder. Move the file there, or set `MgApp_CertificatePath` to the file's full path.
 
+### Removed
+
+- `Send-ScriptMessage` no longer accepts pipeline input, which never sent the intended message: a piped value was bound to several parameters at once, such as the recipients, the sender, and the attachments. Piped input is now reported as an error and nothing is sent.
+
 ### Fixed
 
 - `Send-ScriptMessage` now honors an explicit `-ChatType OneOnOne`. The configuration file's `ChatType` setting was used in its place, so a call asking for one-on-one chats sent a single group chat when that setting was `Group`. An explicit `-ChatType Group` was unaffected.

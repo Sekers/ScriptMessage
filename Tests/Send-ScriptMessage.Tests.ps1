@@ -109,6 +109,60 @@ Describe 'Send-ScriptMessage recipient check' {
     }
 }
 
+Describe 'Send-ScriptMessage pipeline input' {
+    BeforeAll {
+        Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+            $Config = [pscustomobject]@{
+                MicrosoftGraph = [pscustomobject]@{
+                    AllowableMessageTypes = @('Mail')
+                    MgPermissionType      = 'Application'
+                    MgDisconnectWhenDone  = $false
+                }
+            }
+            if ($null -ne $Service) { $Config.$Service } else { $Config }
+        }
+        Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }
+        Mock -ModuleName ScriptMessage Send-MgUserMail { $true }
+
+        $MessageArguments = @{
+            Service = 'MicrosoftGraph'
+            Type    = 'Mail'
+            From    = 'sender@example.org'
+            To      = 'recipient@example.org'
+            Subject = 'Test subject'
+            Body    = 'Test body'
+        }
+    }
+
+    # No parameter takes pipeline input. When the binding error does not stop the call, only the process block keeps
+    # the body from running anyway and sending without the piped value, as it would an attachment meant for the
+    # message. When it does, the call throws before any of it runs. The error follows -ErrorAction or the global
+    # preference, never a caller's local one, so these tests pass -ErrorAction to stay independent of the runner's.
+    It 'reports <Name> and sends nothing' -ForEach @(
+        @{ Name = 'a piped file path'; Piped = 'C:\Reports\report.txt' }
+        @{ Name = 'a piped message object'; Piped = [pscustomobject]@{ To = 'other@example.org'; Subject = 'Other' } }
+    ) {
+        # -ErrorVariable does not collect this error, which comes from binding rather than from the command.
+        $Output = @($Piped | Send-ScriptMessage @MessageArguments -ErrorAction Continue 2>&1)
+
+        @($Output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) | Should -BeNullOrEmpty
+        @($Output | Where-Object { $_.FullyQualifiedErrorId -like 'InputObjectNotBound*' }).Count | Should -Be 1
+        Should -Invoke -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph -Times 0 -Exactly
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+    }
+
+    It 'stops a caller whose error preference is Stop, sending nothing' {
+        { 'C:\Reports\report.txt' | Send-ScriptMessage @MessageArguments -ErrorAction Stop } | Should -Throw -ErrorId 'InputObjectNotBound*'
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 0 -Exactly
+    }
+
+    It 'still sends once when nothing is piped' {
+        $null = Send-ScriptMessage @MessageArguments
+
+        Should -Invoke -ModuleName ScriptMessage Send-MgUserMail -Times 1 -Exactly
+    }
+}
+
 Describe 'Send-ScriptMessage chat message' {
     BeforeAll {
         Mock -ModuleName ScriptMessage Connect-ScriptMessage_MicrosoftGraph { }

@@ -21,7 +21,8 @@ function Disconnect-ScriptMessage
         Disconnect-ScriptMessage -Service MicrosoftGraph -ReturnConnectionInfo
     #>
 
-    [CmdletBinding()]
+    # Named parameters only. With no Position declared anywhere, PowerShell would otherwise make -Service positional.
+    [CmdletBinding(PositionalBinding = $false)]
     param(
         [Parameter(
         Mandatory = $true,
@@ -30,10 +31,7 @@ function Disconnect-ScriptMessage
         [MessagingService]$Service,
 
         [parameter(
-        Position=1,
-        Mandatory=$false,
-        ValueFromPipeline=$true,
-        ValueFromPipelineByPropertyName=$true)]
+        Mandatory=$false)]
         [switch]$ReturnConnectionInfo
     )
 

@@ -152,7 +152,7 @@ names works while there is one service and silently returns nothing once there a
 `Send-ScriptMessage` now loops over the services in each `MessageServiceType` and looks each one up by its
 registered name, a single string.
 
-## 6. Measured: without a `process` block, piped input binds only the last item
+## 6. Measured: pipeline input, positional binding, and the `process` block
 
 Piping `'a','b','c'` into an advanced function whose parameter has `ValueFromPipeline = $true`:
 
@@ -161,9 +161,65 @@ Piping `'a','b','c'` into an advanced function whose parameter has `ValueFromPip
 | no `process` block | runs once, with `c` |
 | a `process { }` block | runs three times, with `a`, `b`, and `c` |
 
-**From source:** every function in `ScriptMessage/Public/` declares `ValueFromPipeline = $true` on its
-parameters and none has a `process` block, so piping several objects into any of them acts on the last object
-only.
+The rest of this section was measured on **2026-09-23**, same machine and editions as the header, both agreeing on
+every result, in standalone functions or with this module's service handlers and configuration read replaced inside
+the module, so nothing connected or sent.
+
+**Input nothing can bind.** Piping `'x','y'` into a function with no pipeline parameters writes one error per item,
+`InputObjectNotBound`:
+
+| Function | Error preference | Result |
+| --- | --- | --- |
+| no `process` block | `Continue` | the errors, then the body runs once anyway |
+| a `process` block | `Continue` | the errors; the body never runs |
+| either | `Stop` | throws `InputObjectNotBound`; the body never runs |
+
+For a function in a module, the preference that applies is `-ErrorAction` on the call, or else the global
+`$ErrorActionPreference`, never a caller's local one: a caller that set `Stop` in its own scope still got a
+non-terminating error. `-ErrorVariable` on the call did not collect the error; `2>&1` did.
+
+**Switches.** A switch that declares `ValueFromPipeline` binds a piped `$true` or `$false`, but not a string. A
+`Position` on a switch is honored: a positional `$true` turns it on, and a positional string fails with
+`ParameterArgumentTransformationError`. When no parameter declares a `Position`, PowerShell numbers the others from
+0 itself, so removing the only declared one made `Connect-ScriptMessage -Service` positional;
+`[CmdletBinding(PositionalBinding = $false)]` stops that.
+
+**What piping into the public functions did through `1.1.1`.** Their parameters were the same as `1.1.1`'s:
+
+| Call | Result |
+| --- | --- |
+| a message object (`Service`, `Type`, `From`, `To`, `Subject`, `Body`) piped to `Send-ScriptMessage` | the object bound by value to `To`, `CC`, `BCC`, `Body`, and `Attachment` at once; stopped with "provide at least one ... To, CC, or BCC" |
+| an address or file path piped to `Send-ScriptMessage`, with the rest named | a missing file: "Invalid path to attachment"; an existing file reached the service as the attachment and also as `CC`, `BCC`, `ReplyTo`, and `SenderId` |
+| an attachment hashtable piped the same way | reached the service with `SenderId` set to the text `System.Collections.Hashtable` |
+| `$true` or `$false` piped the same way | stopped with "Unexpected attachment object type." |
+| `Connect-ScriptMessage MicrosoftGraph` | failed: the switch at position 1 took the service name |
+| `$true \| Connect-ScriptMessage -Service MicrosoftGraph`, or a positional `$true` | returned connection information; `Disconnect-ScriptMessage` behaved the same |
+| `'MicrosoftGraph' \| Get-ScriptMessageConfig` | tried to read a file named `MicrosoftGraph` |
+
+**Pipeline input by property name, for a possible later `Send-ScriptMessage`.** A stand-in with `Send-ScriptMessage`'s
+parameter types, every one taking pipeline input by property name only, and a `process` block, sent one message
+per piped object, took what an object lacked from named parameters, and left a named-only call unchanged. Two things
+carried over from one piped object to the next, as another project's notes had reported:
+
+- `$PSBoundParameters` keeps the keys of earlier objects, so `ContainsKey()` answers for an earlier object.
+- A value the body writes back into a parameter variable stays for the next object, unless that object supplies
+  the parameter or the previous object supplied it from the pipeline; either resets it.
+
+**From source:** `Send-ScriptMessage` takes no pipeline input and runs its body in a `process` block, so piped input
+sends nothing. No switch takes pipeline input or a position, and `Connect-ScriptMessage` and
+`Disconnect-ScriptMessage` set `PositionalBinding = $false`. `Tests/ScriptMessage.Module.Tests.ps1` holds those
+rules. `-Service` on `Connect-ScriptMessage`, `Disconnect-ScriptMessage` and `Get-ScriptMessageContext`, `-Path` and
+`-Service` on `Get-ScriptMessageConfig`, and `-Path` on `Set-ScriptMessageConfigFilePath` still take pipeline input
+with no `process` block, so the last piped object wins; each acts on one service or one path. Before
+`Send-ScriptMessage` takes pipeline input, its body must stop writing back into `$From`, `$ReplyTo`, `$To`, `$CC`,
+`$BCC`, `$Body`, `$Attachment`, `$Service`, `$Type`, and `$ServiceType`, and stop reading `$PSBoundParameters` for
+`ChatType` and `MailType`.
+
+### What this does not establish
+
+- Whether any script piped into these functions. Nothing in the help, README, or wiki shows it.
+- What Microsoft Graph did with the piped hashtable's sender; nothing was sent.
+- Only strings, one kind of object, a hashtable, and booleans were piped.
 
 ## 7. Measured: `System.Web.HttpUtility` and URL encoding
 
