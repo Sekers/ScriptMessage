@@ -494,3 +494,34 @@ folder but present in the current location, with a deprecation warning.
 - Under Windows PowerShell 5.1, only `IsPSAbsolute()` and `IsPathRooted()` were run, for the inputs listed above.
 - Linux and macOS were not run, so how `~/app.pfx` or a path with backslashes classifies there is unmeasured.
 - `Get-PfxCertificate -FilePath` was never called with any of these paths; only the classification was measured.
+
+## 14. Measured: output written before a terminating error
+
+Measured on **2026-09-23**, same machine and editions as the header, in a standalone script with the module not
+imported. Both editions agreed on every row. Two advanced functions each wrote one object and then stopped: one with
+`throw`, and one by calling a function that uses `Write-Error` with `-ErrorAction Stop`, the way `Send-ScriptMessage`
+calls a service's connect handler. Both gave the same results.
+
+| How the caller ran the function | What the caller kept |
+| --- | --- |
+| `$r = f`, inside `try`/`catch` | nothing; `$r` kept its earlier value |
+| `$r = @(f)`, inside `try`/`catch` | nothing |
+| `f -OutVariable r` | the object |
+| `f \| ForEach-Object { ... }` | the object, processed before the error arrived |
+| `$r = try { f } catch { 'caught' }` | the object, followed by what the `catch` block wrote |
+| `f -ErrorAction SilentlyContinue` | nothing; the function still stopped |
+
+So a terminating error discards everything the command wrote to an assignment, while the pipeline, `-OutVariable`,
+and an assigned `try` statement keep what came before it. The caller's `-ErrorAction` does not help, because both
+functions stop whatever the caller's preference is.
+
+**From source:** `Send-ScriptMessage` connects and sends one service at a time and calls each connect handler with
+`-ErrorAction Stop`. When a later service fails to connect, a script that assigns its output loses the results of
+the services that already sent, although their messages went out, and the services after it are not tried. The
+TODO on the send loop covers this. Nothing can reach it while `MicrosoftGraph` is the only service.
+
+### What this does not establish
+
+- Only `throw` and `Write-Error -ErrorAction Stop` were tried; `$PSCmdlet.ThrowTerminatingError()` and a `trap`
+  statement were not.
+- The functions were called directly, not through `Send-ScriptMessage`, which cannot reach this with one service.
