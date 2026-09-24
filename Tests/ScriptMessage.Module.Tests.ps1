@@ -59,7 +59,7 @@ Describe 'ScriptMessage module' {
     It 'has no PSScriptAnalyzer errors' {
         if ($PSVersionTable.PSEdition -ne 'Core')
         {
-            Set-ItResult -Skipped -Because 'the analyzer check runs under PowerShell 7 only'
+            Set-ItResult -Skipped -Because 'this is Windows PowerShell 5.1, and the analyzer check runs only in the PowerShell 7 run'
         }
 
         $Installed = @(Get-Module -ListAvailable -Name PSScriptAnalyzer)
