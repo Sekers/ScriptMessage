@@ -108,4 +108,135 @@ Describe 'Connect-ScriptMessage certificate file path' -Skip:($PSVersionTable.PS
         Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop
         Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter { $FilePath -eq $Expected }
     }
+
+    Context 'A configuration file with a relative path' {
+        BeforeAll {
+            # The configuration file and PowerShell's current location are in different folders, so each test can
+            # put the certificate file in either one, both, or neither.
+            $ConfigFolder = Join-Path $TestDrive 'Config'
+            $CurrentFolder = Join-Path $TestDrive 'Current'
+            $null = New-Item -ItemType Directory -Path $ConfigFolder, $CurrentFolder
+            $ConfigFile = Join-Path $ConfigFolder 'config_scriptmessage.json'
+            Set-ScriptMessageConfigFilePath -Path $ConfigFile
+
+            function Set-TestCertificatePath
+            {
+                param([string]$CertificatePath)
+                @{
+                    MicrosoftGraph = @{
+                        AllowableMessageTypes    = @('Chat')
+                        MgPermissionType         = 'Application'
+                        MgTenantID               = 'tenant-id'
+                        MgClientID               = 'client-id'
+                        MgApp_AuthenticationType = 'CertificateFile'
+                        MgApp_CertificatePath    = $CertificatePath
+                    }
+                } | ConvertTo-Json -Depth 3 | Set-Content -Path $ConfigFile
+            }
+
+            Push-Location -Path $CurrentFolder
+        }
+
+        AfterAll {
+            Pop-Location
+        }
+
+        BeforeEach {
+            Set-TestCertificatePath 'app.pfx'
+            Remove-Item -Path (Join-Path $ConfigFolder 'app.pfx'), (Join-Path $CurrentFolder 'app.pfx') -ErrorAction SilentlyContinue
+        }
+
+        It 'opens the file in the configuration file''s folder' {
+            $null = New-Item -ItemType File -Path (Join-Path $ConfigFolder 'app.pfx')
+
+            Connect-ScriptMessage -Service MicrosoftGraph -ErrorAction Stop -WarningVariable Warnings
+
+            $Warnings | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq (Join-Path $ConfigFolder 'app.pfx')
+            }
+        }
+
+        It 'prefers the configuration file''s folder when the current location has the file too' {
+            $null = New-Item -ItemType File -Path (Join-Path $ConfigFolder 'app.pfx'), (Join-Path $CurrentFolder 'app.pfx')
+
+            Connect-ScriptMessage -Service MicrosoftGraph -ErrorAction Stop -WarningVariable Warnings
+
+            $Warnings | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq (Join-Path $ConfigFolder 'app.pfx')
+            }
+        }
+
+        It 'still opens a file found only in the current location, with a deprecation warning' {
+            $null = New-Item -ItemType File -Path (Join-Path $CurrentFolder 'app.pfx')
+
+            Connect-ScriptMessage -Service MicrosoftGraph -ErrorAction Stop -WarningVariable Warnings -WarningAction SilentlyContinue
+
+            @($Warnings).Count | Should -Be 1
+            "$Warnings" | Should -BeLike '*current location is deprecated*'
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq 'app.pfx'
+            }
+        }
+
+        It 'names the configuration file''s folder when neither has the file' {
+            Connect-ScriptMessage -Service MicrosoftGraph -ErrorAction Stop -WarningVariable Warnings
+
+            $Warnings | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq (Join-Path $ConfigFolder 'app.pfx')
+            }
+        }
+
+        It 'resolves a path that leaves the configuration file''s folder' {
+            Set-TestCertificatePath '..\Certs\app.pfx'
+
+            Connect-ScriptMessage -Service MicrosoftGraph -ErrorAction Stop
+
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq (Join-Path $TestDrive 'Certs\app.pfx')
+            }
+        }
+
+        # .NET does not count a PowerShell drive as absolute, and PowerShell does not count a UNC path or '~'.
+        It 'uses <CertificatePath> as written' -ForEach @(
+            @{ CertificatePath = '~\app.pfx' }
+            @{ CertificatePath = 'TestDrive:\app.pfx' }
+            @{ CertificatePath = '\\server.example.com\share\app.pfx' }
+        ) {
+            Set-TestCertificatePath $CertificatePath
+
+            Connect-ScriptMessage -Service MicrosoftGraph -ErrorAction Stop
+
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq $CertificatePath
+            }
+        }
+
+        It 'resolves settings passed to -ServiceConfig from the current location, without a warning' {
+            $null = New-Item -ItemType File -Path (Join-Path $ConfigFolder 'app.pfx')
+            $ServiceConfig = Get-ScriptMessageConfig -Service MicrosoftGraph
+
+            Connect-ScriptMessage -Service MicrosoftGraph -ServiceConfig $ServiceConfig -ErrorAction Stop -WarningVariable Warnings
+
+            $Warnings | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq 'app.pfx'
+            }
+        }
+
+        It 'resolves from the configuration file''s folder when Send-ScriptMessage connects' {
+            Mock -ModuleName ScriptMessage Send-ScriptMessage_MicrosoftGraph { }
+            $null = New-Item -ItemType File -Path (Join-Path $ConfigFolder 'app.pfx')
+
+            Send-ScriptMessage -Service MicrosoftGraph -Type Chat -From 'sender@example.org' -To 'recipient@example.org' `
+                -Subject 'Test subject' -Body 'Test body' -ErrorAction Stop
+
+            Should -Invoke -ModuleName ScriptMessage Get-PfxCertificate -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq (Join-Path $ConfigFolder 'app.pfx')
+            }
+            Should -Invoke -ModuleName ScriptMessage Send-ScriptMessage_MicrosoftGraph -Times 1 -Exactly
+        }
+    }
 }

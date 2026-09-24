@@ -8,10 +8,15 @@
   - `Group` sends one email to all of the To, CC, and BCC recipients.
   - `OneOnOne` sends each To, CC, and BCC recipient a separate email with only that recipient in To, so no recipient can see who else received it. A recipient listed more than once gets one email.
 - New Parameter: `Get-ScriptMessageConfig -ReturnConfigFilePath` > Adds a `ConfigFilePath` property to the returned settings, holding the full path of the configuration file that was read.
+- `MgApp_CertificatePath` can now be relative to the configuration file's folder, so a certificate file kept beside the configuration file can be given as just its name, such as `PrivateKeyCertificate.pfx`. Settings passed to `Connect-ScriptMessage -ServiceConfig` don't come with a configuration file, so a relative path in them is still resolved from PowerShell's current location.
 
 ### Changed
 
 - Importing ScriptMessage again with `Import-Module -Force`, or removing and importing it, now clears the configuration file path set by `Set-ScriptMessageConfigFilePath`. Call `Set-ScriptMessageConfigFilePath` after importing the module.
+
+### Deprecated
+
+- Finding a relative `MgApp_CertificatePath` in PowerShell's current location is deprecated. When the file isn't in the configuration file's folder but is in the current location, ScriptMessage still uses it and shows a warning; the next major version will look only in the configuration file's folder. Move the file there, or set `MgApp_CertificatePath` to the file's full path.
 
 ### Fixed
 

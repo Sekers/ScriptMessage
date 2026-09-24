@@ -255,7 +255,13 @@ function Connect-ScriptMessage_MicrosoftGraph
         Mandatory = $true,
         ValueFromPipeline = $true,
         ValueFromPipelineByPropertyName = $true)]
-        [pscustomobject]$ServiceConfig
+        [pscustomobject]$ServiceConfig,
+
+        # The full path of the configuration file the settings came from, or empty when they did not come from one.
+        [Parameter(
+        Mandatory = $false,
+        ValueFromPipelineByPropertyName = $true)]
+        [string]$ConfigFilePath
     )
 
     # Collect the connection settings from the service configuration.
@@ -372,9 +378,35 @@ function Connect-ScriptMessage_MicrosoftGraph
                         throw $NewMessage
                     }
                     
-                    # Expand only environment variables, so the configuration file cannot run code; the rest is used as written.
+                    # Expand only environment variables, so the configuration file cannot run code.
                     $MgApp_CertificatePath = $ServiceConfig.MgApp_CertificatePath -replace '\$\{env:([^}]+)\}|\$env:(\w+)', {
                         [Environment]::GetEnvironmentVariable($_.Groups[1].Value + $_.Groups[2].Value)
+                    }
+
+                    # A relative path is resolved from the configuration file's folder. .NET does not count a
+                    # PowerShell drive as absolute and PowerShell does not count a UNC path, so a path is relative
+                    # only when neither does; '~' is the home folder. Settings that did not come from a file keep
+                    # resolving from the current location.
+                    $DriveName = $null
+                    $IsRelativePath = -not ([string]::IsNullOrWhiteSpace($MgApp_CertificatePath) -or
+                        [System.IO.Path]::IsPathRooted($MgApp_CertificatePath) -or
+                        $PSCmdlet.SessionState.Path.IsPSAbsolute($MgApp_CertificatePath, [ref]$DriveName) -or
+                        $MgApp_CertificatePath.StartsWith('~'))
+                    if ($IsRelativePath -and -not [string]::IsNullOrEmpty($ConfigFilePath))
+                    {
+                        $ConfigFolder = [System.IO.Path]::GetDirectoryName($ConfigFilePath)
+                        $PathInConfigFolder = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($ConfigFolder, $MgApp_CertificatePath))
+
+                        # Deprecated: a file found only relative to the current location is still used, with a
+                        # warning. Remove this fallback in the next major version.
+                        if (-not (Test-Path -LiteralPath $PathInConfigFolder -PathType Leaf) -and (Test-Path -LiteralPath $MgApp_CertificatePath -PathType Leaf))
+                        {
+                            Write-Warning -Message "The MgApp_CertificatePath file '$MgApp_CertificatePath' was found in PowerShell's current location, not in the configuration file's folder '$ConfigFolder'. Finding a relative path from the current location is deprecated, and the next major version of ScriptMessage will look only in the configuration file's folder. Move the file there, or set MgApp_CertificatePath to the file's full path."
+                        }
+                        else
+                        {
+                            $MgApp_CertificatePath = $PathInConfigFolder
+                        }
                     }
 
                     # Try accessing private key certificate without password using current process credentials.

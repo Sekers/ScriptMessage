@@ -112,9 +112,10 @@ replaced by stand-ins inside the module, passed `...\ScriptMessage\Services\Conf
 function defined in the module's `Services` folder (`MgGraph.ps1`, then `MicrosoftGraph.ps1`), so that setting
 ran any code written into it, and `$PSScriptRoot` in it meant the module's `Services` folder.
 `Connect-ScriptMessage_MicrosoftGraph` now expands only `$env:NAME` and `${env:NAME}` in that setting, with a
-`-replace` that looks each name up with `[Environment]::GetEnvironmentVariable`, and uses the rest as written. A
+`-replace` that looks each name up with `[Environment]::GetEnvironmentVariable`, and expands nothing else. A
 scriptblock replacement needs PowerShell 6 or later, which is safe there because certificate file
-authentication throws before PowerShell 7.4.
+authentication throws before PowerShell 7.4. It then resolves a relative result from the configuration file's
+folder, as section 13 describes.
 
 ### What this does not establish
 
@@ -440,3 +441,43 @@ read the path; `Get-ScriptMessageConfig -ReturnConfigFilePath` is.
 
 - Two versions of the module loaded side by side, and `Import-Module -Scope Local`, were not tested.
 - Other runspaces (jobs, `ForEach-Object -Parallel`) were not tested.
+
+## 13. Measured: which paths .NET and PowerShell count as absolute
+
+Measured on **2026-09-23** on Windows 11 (10.0.26200) with PowerShell **7.6.6** only, in a standalone advanced
+function with the module not imported. PowerShell's current location was the temporary folder, and `MyCerts:` was
+a FileSystem drive created with `New-PSDrive`.
+
+| Path | `Split-Path -IsAbsolute` | `IsPSAbsolute()` | `[System.IO.Path]::IsPathRooted()` | `IsPathFullyQualified()` |
+| --- | --- | --- | --- | --- |
+| `app.pfx`, `.\app.pfx`, `..\app.pfx`, `sub\app.pfx` | `False` | `False` | `False` | `False` |
+| `C:\Certs\app.pfx` | `True` | `True` | `True` | `True` |
+| `C:app.pfx` | `True` | `True` | `True` | `False` |
+| `\Certs\app.pfx`, `/Certs/app.pfx` | `False` | `False` | `True` | `False` |
+| `\\server\share\app.pfx` | `False` | `False` | `True` | `True` |
+| `~\app.pfx` | `False` | `False` | `False` | `False` |
+| `MyCerts:\app.pfx`, `Env:\TEMP` | `True` | `True` | `False` | `False` |
+| `Microsoft.PowerShell.Core\FileSystem::C:\Certs\app.pfx` | `True` | `True` | `False` | `False` |
+
+`IsPSAbsolute()` is `$PSCmdlet.SessionState.Path.IsPSAbsolute()`, and it agreed with `Split-Path -IsAbsolute` on
+every row. So PowerShell does not count a UNC path, a path from the root of the current drive, or `~` as
+absolute, and .NET does not count a PowerShell drive or a provider-qualified path.
+`GetUnresolvedProviderPathFromPSPath` resolved `~\app.pfx` to the home folder, not the current location.
+
+`IsPSAbsolute()` counts anything before a colon as a drive, whether or not that drive exists: it returned `True`
+for `Q:\app.pfx`, `NoSuchDrive:\app.pfx`, `cert:app.pfx`, `app.pfx:stream`, and `http://example.com/app.pfx`. It
+threw for none of the inputs tried, including an empty string and a single space, which both returned `False`.
+
+**From source:** `Connect-ScriptMessage_MicrosoftGraph` treats `MgApp_CertificatePath`, after expanding environment
+variables, as relative only when `IsPathRooted()` and `IsPSAbsolute()` both return `False` and it does not start
+with `~`. When the settings came from a configuration file, it looks for a relative path in that file's folder,
+and uses the path as written (so relative to PowerShell's current location) only when the file is missing from the
+folder but present in the current location, with a deprecation warning. Settings passed to
+`Connect-ScriptMessage -ServiceConfig` carry no file path, so their relative paths are used as written.
+
+### What this does not establish
+
+- Windows PowerShell 5.1 was not run. The setting is unused there, since certificate file authentication needs
+  PowerShell 7.4 or later.
+- Linux and macOS were not run, so how `~/app.pfx` or a path with backslashes classifies there is unmeasured.
+- `Get-PfxCertificate -FilePath` was never called with any of these paths; only the classification was measured.

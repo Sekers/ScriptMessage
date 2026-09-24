@@ -251,8 +251,9 @@ function Send-ScriptMessage
         [Nullable[bool]]$IncludeBCCInGroupChat # Nullable so it can be set to $null, meaning "use the configured value"
     )
 
-    # Set the necessary configuration variables.
-    $ScriptMessageConfig = Get-ScriptMessageConfig
+    # Set the necessary configuration variables. The file's path comes with them, so a service can resolve a relative
+    # path in its settings from the file's folder.
+    $ScriptMessageConfig = Get-ScriptMessageConfig -ReturnConfigFilePath
 
     # Convert recipient types into properly formatted PSObject.
     $From = ConvertTo-ScriptMessageRecipientObject -Recipient $From # Note that From is NOT an array. There should only be one.
@@ -394,11 +395,16 @@ function Send-ScriptMessage
         }
     }
 
-    foreach ($preparedSend in $PreparedSends) # TODO: Catch errors once we have multiple services so if one fails the other(s) can still be processed.
+    # Connect and send one service at a time. A service reports a failure while sending in its results, but a failure
+    # to connect throws and stops the call.
+    # TODO: Before adding a second service, report a connect failure without stopping the call. As it is, the services
+    # after the one that failed are not tried, which defeats sending through several for redundancy, and a caller that
+    # assigns the output loses the results of the ones before it, even though their messages went out.
+    foreach ($preparedSend in $PreparedSends)
     {
         # Connect to the messaging service, if necessary (e.g., API service), through its registered handler, the
         # same one Connect-ScriptMessage uses.
-        & $preparedSend.Registration.ConnectFunction -ServiceConfig $preparedSend.ServiceConfig -ErrorAction Stop
+        & $preparedSend.Registration.ConnectFunction -ServiceConfig $preparedSend.ServiceConfig -ConfigFilePath $ScriptMessageConfig.ConfigFilePath -ErrorAction Stop
 
         $SendMessageParameters = $preparedSend.SendMessageParameters
         & $preparedSend.Registration.SendFunction @SendMessageParameters

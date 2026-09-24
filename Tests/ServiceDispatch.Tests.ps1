@@ -57,7 +57,7 @@ Describe 'The public cmdlets dispatch through the service table' {
         }
 
         InModuleScope ScriptMessage {
-            function script:Connect-StandInService { param($ServiceConfig) $script:StandInCalls += 'Connect' }
+            function script:Connect-StandInService { param($ServiceConfig, $ConfigFilePath) $script:StandInCalls += 'Connect' }
             function script:Disconnect-StandInService { $script:StandInCalls += 'Disconnect'; [pscustomobject]@{ StandIn = $true } }
             function script:Get-StandInServiceContext { $script:StandInCalls += 'GetContext'; [pscustomobject]@{ StandIn = $true } }
             function script:Send-StandInService { $script:StandInCalls += 'Send'; [pscustomobject]@{ StandIn = $true } }
