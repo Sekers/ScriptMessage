@@ -330,9 +330,9 @@ accounts the tester controls: the signed-in sender and two recipients.
 **Measured:**
 
 - `Get-MgChat -All -Filter "ChatType eq 'group'"` with `-ExpandProperty 'Members', 'LastMessagePreview'`, the
-  call the module makes, succeeded: Graph accepts both expansions in one request. Each of the signed-in account's
-  6 group chats came back with its members' `email` values and a `LastMessagePreview`, and no two of them had the
-  same members.
+  call the module makes, succeeded: Graph accepts both expansions in one request. In a separate read-only run,
+  signed in as one of the recipient accounts instead of the sender, each of that account's 6 group chats came
+  back with its members' `email` values and a `LastMessagePreview`, and no two of them had the same members.
 - **A group chat with the same members as an existing one is a new chat.** `New-MgChat -BodyParameter`, with
   `chatType` `group` and the same three members as an existing group chat, returned a chat with a new ID and a
   `CreatedDateTime` of that moment.
@@ -360,6 +360,10 @@ accounts the tester controls: the signed-in sender and two recipients.
   `user@odata.bind` value was present but named a user that does not exist (a quoted list of addresses passed as
   one address). The message says the field is missing when it is there but wrong. Both the `-Members` form and
   the `-BodyParameter` form gave it.
+- **Timing** (read-only, signed in as the sender, 21 group chats, five alternating runs of each call): the
+  `Chat.Read` path's call, expanding `Members` and `LastMessagePreview`, took 580 to 780 ms, median 668 ms. The
+  `Chat.ReadBasic` path's call, expanding only `Members`, took 541 to 646 ms, median 573 ms. The `Chat.Read` call
+  was slower in all five pairs.
 
 **From documentation:** the chat resource type page defines `lastUpdatedDateTime` as "Date and time at which the
 chat was renamed or the list of members was last changed", and says `lastMessagePreview` is "Null if no messages
@@ -397,4 +401,6 @@ values are exactly the sender plus the recipients, and creates a new group chat 
   tested.
 - **Unverified:** whether permissions a user consented to for themselves, rather than ones an administrator granted
   for the organization, are carried the same way. Only administrator grants were measured.
+- How the timing gap grows with many more chats, and whether sorting on the server by
+  `lastMessagePreview/createdDateTime` would make the `Chat.Read` path faster.
 - Nothing in this section was measured on Windows PowerShell 5.1 or with an SDK release other than 2.25.0.
