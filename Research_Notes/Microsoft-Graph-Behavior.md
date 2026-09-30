@@ -381,8 +381,11 @@ values are exactly the sender plus the recipients, and creates a new group chat 
   the same holds for every setting that only chooses which delegated permission is asked for.
 - A group chat with more than 25 members never matches, if the 25-member cap applies to `-All` paging too, so the
   module would create a new chat on every send to it.
-- A recipient given by an address other than the one Graph reports as the member's `email`, such as an alias,
-  never matches either, with the same result.
+- A recipient given by a UPN that differs from their primary email address never matches either, with the same
+  result: the module names each member as `users('<address>')`, which going by Graph's
+  `/users/{id | userPrincipalName}` form takes a user ID or UPN, but matches on the member's `email`, the primary
+  address. Matching on each member's `userId` would avoid it. A true alias, neither the UPN nor the primary
+  address, probably fails when the chat is created instead.
 
 ### What this does not establish
 
@@ -390,7 +393,8 @@ values are exactly the sender plus the recipients, and creates a new group chat 
   chat already existed, so that path was not exercised.
 - **Unverified:** whether the Teams client ever creates a second group chat with the same members, and whether
   anything besides a rename or a member change moves `LastUpdatedDateTime` (only the documentation says so).
-- **Unverified:** the 25-member cap and the alias mismatch in the inferences above. Neither was tested.
+- **Unverified:** the 25-member cap, the UPN mismatch, and the alias failure in the inferences above. None was
+  tested.
 - **Unverified:** whether permissions a user consented to for themselves, rather than ones an administrator granted
   for the organization, are carried the same way. Only administrator grants were measured.
 - Nothing in this section was measured on Windows PowerShell 5.1 or with an SDK release other than 2.25.0.
