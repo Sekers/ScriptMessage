@@ -1,13 +1,14 @@
 # Microsoft Graph behavior
 
 What Microsoft Graph and the Microsoft Graph PowerShell SDK do in the areas this module relies on:
-permissions, what a successful send returns, chat creation, attachment and upload limits, how SDK sign-in
+permissions, what a successful send returns, chat creation and reuse, attachment and upload limits, how SDK sign-in
 persists, and what disconnecting after a send changes. Each claim is tied to the part of the module it affects.
 
-**Only section 7 was measured against a tenant**, on **2026-09-16**; that section gives the environment.
-Documentation was read on **2026-09-15** from the pages listed under Sources, and the SDK source on
-**2026-09-16**, except for section 8, whose pages and SDK source were read on **2026-09-21**. Microsoft revises
-these pages, so re-read a page before relying on a limit or a permission.
+**Only sections 7 and 9 were measured against a tenant**, on **2026-09-16** and **2026-09-30**; each section
+gives its environment. Documentation was read on **2026-09-15** from the pages listed under Sources, and the SDK
+source on **2026-09-16**, except for section 8, whose pages and SDK source were read on **2026-09-21**, and
+section 9, whose pages were read on **2026-09-30**. Microsoft revises these pages, so re-read a page before
+relying on a limit or a permission.
 
 **Claims are labelled with their evidence.**
 
@@ -50,6 +51,8 @@ these pages, so re-read a page before relying on a limit or a permission.
 | [ConvertFrom-SecureString](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/convertfrom-securestring) | 2026-08-10 |
 | [about_Signing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing) | 2026-09-21 |
 | [Microsoft Graph PowerShell SDK authentication source, branch `main`](https://github.com/microsoftgraph/msgraph-sdk-powershell/tree/main/src/Authentication) | none (branch, read 2026-09-21) |
+| [List chats](https://learn.microsoft.com/en-us/graph/api/chat-list?view=graph-rest-1.0) | 2026-04-13 |
+| [chat resource type](https://learn.microsoft.com/en-us/graph/api/resources/chat?view=graph-rest-1.0) | 2026-08-05 |
 
 ## 1. From documentation: permissions for each operation the module performs
 
@@ -124,8 +127,8 @@ relies on this to land in the existing chat. For `Group`, it first lists all of 
 (`Get-MgChat -All`, expanding members) and posts into one whose members exactly match the sender plus the
 recipients, creating a new group chat only when none matches.
 
-**Unverified:** whether `New-MgChat` for a group chat always creates a new chat even when one with the same
-members already exists. The page does not say, and the module's lookup exists on the assumption that it does.
+**Measured** (section 9): creating a group chat with the same members as an existing one created a second chat
+rather than returning the first. The page does not say, and the module's lookup exists because of it.
 
 ## 5. From documentation: attachment and upload size limits
 
@@ -316,3 +319,78 @@ that runs the script, on the computer that runs it.
 - **Unverified:** the message `ConvertTo-SecureString` gives for a string encrypted by another account or on
   another computer. The wiki's troubleshooting entry uses "Key not valid for use in specified state.", the
   Windows message usually reported for it; it was not reproduced here.
+
+## 9. Measured: finding a group chat to reuse
+
+**Environment:** measured on 2026-09-30 in PowerShell 7.6.6 on Windows 11, with `Microsoft.Graph.Authentication`
+and `Microsoft.Graph.Teams` 2.25.0. The sign-in was delegated, through an app registration with `Chat.Read`
+consented, and `Send-ScriptMessage` came from `develop` at `bcc28ea`. Every chat and message involved only three
+accounts the tester controls: the signed-in sender and two recipients.
+
+**Measured:**
+
+- `Get-MgChat -All -Filter "ChatType eq 'group'"` with `-ExpandProperty 'Members', 'LastMessagePreview'`, the
+  call the module makes, succeeded: Graph accepts both expansions in one request. Each of the signed-in account's
+  6 group chats came back with its members' `email` values and a `LastMessagePreview`, and no two of them had the
+  same members.
+- **A group chat with the same members as an existing one is a new chat.** `New-MgChat -BodyParameter`, with
+  `chatType` `group` and the same three members as an existing group chat, returned a chat with a new ID and a
+  `CreatedDateTime` of that moment.
+- **Posting a message does not change `LastUpdatedDateTime`.** After three messages were posted into the existing
+  chat, its `LastUpdatedDateTime` still equalled its `CreatedDateTime`, more than a year earlier, while
+  `LastMessagePreview.CreatedDateTime` moved to each new message.
+- With one matching chat, `Send-ScriptMessage -ChatType Group` posted into it. With two, where the newer chat held
+  the latest message, it posted into the older one, whose last message was older too.
+- **A delegated sign-in gets every delegated permission already granted to the app, not only the ones asked
+  for.** With `MgDelegatedPermission_RequestChatReadPermission` false, `AllowableMessageTypes` only `Chat`, and
+  `MgDelegatedPermission_RequestFilesReadWritePermission` false, `Connect-ScriptMessage` asked for
+  `Chat.ReadBasic` but no `Chat.Read`, `Mail.Send`, or `Files.ReadWrite`. The connection's scopes, as
+  `Get-ScriptMessageContext` reported them, included all four, because the app registration had all of them
+  granted. The group chat lookup therefore took the `Chat.Read` sort.
+- **`Chat.ReadBasic` cannot read `lastMessagePreview`.** With `Chat.Read`'s grant revoked, so the connection's
+  chat scopes were only `Chat.Create`, `Chat.ReadBasic`, and `ChatMessage.Send`, the same `Get-MgChat` call with
+  `-ExpandProperty 'Members', 'LastMessagePreview'` failed with 403 "Expansion on lastMessagePreview requires one
+  of the 'Chat.Read,Chat.ReadWrite' additional permissions". Expanding only `Members` succeeded.
+- On that connection, with the same two matching chats, `Send-ScriptMessage -ChatType Group` from this change's
+  code posted into the newer chat, by `LastUpdatedDateTime`, although the older one held the latest message.
+- Before `Chat.ReadBasic` was granted to the app, that sign-in stopped at an "Approval required" prompt listing it,
+  in a tenant whose user consent settings require an administrator. The earlier sign-ins, which asked for
+  `Chat.Read`, already granted, had no prompt.
+- `New-MgChat` failed with 400 `'user@odata.bind' field is missing in the request.` when a member's
+  `user@odata.bind` value was present but named a user that does not exist (a quoted list of addresses passed as
+  one address). The message says the field is missing when it is there but wrong. Both the `-Members` form and
+  the `-BodyParameter` form gave it.
+
+**From documentation:** the chat resource type page defines `lastUpdatedDateTime` as "Date and time at which the
+chat was renamed or the list of members was last changed", and says `lastMessagePreview` is "Null if no messages
+were sent in the chat" and that only the list chats operation supports it. The List chats page lists
+`Chat.ReadBasic` as the least privileged delegated permission and supports `$orderby` only on
+`lastMessagePreview/createdDateTime`, descending. It also says `$expand=members` "returns a maximum of 25 member
+items". Neither page says which permission is needed to expand `lastMessagePreview`.
+
+**From source:** the `Group` branch of `Send-ScriptMessage_MicrosoftGraph` lists every group chat and sorts it
+most recent first: by `LastMessagePreview.CreatedDateTime` when the connection's scopes include `Chat.Read` or
+`Chat.ReadWrite`, and otherwise by `LastUpdatedDateTime`. It posts into the first chat whose member `email`
+values are exactly the sender plus the recipients, and creates a new group chat only when none matches.
+
+**Inference:**
+
+- Without `Chat.Read`, "most recent" means the chat most recently created, renamed, or given different members;
+  messages never change which chat is chosen. That sort is used only when the app registration has not been
+  granted `Chat.Read` (or `Chat.ReadWrite`), whatever `MgDelegatedPermission_RequestChatReadPermission` says;
+  the same holds for every setting that only chooses which delegated permission is asked for.
+- A group chat with more than 25 members never matches, if the 25-member cap applies to `-All` paging too, so the
+  module would create a new chat on every send to it.
+- A recipient given by an address other than the one Graph reports as the member's `email`, such as an alias,
+  never matches either, with the same result.
+
+### What this does not establish
+
+- **Unverified:** the module's own `New-MgChat -Members` call creating a group chat with valid members. A matching
+  chat already existed, so that path was not exercised.
+- **Unverified:** whether the Teams client ever creates a second group chat with the same members, and whether
+  anything besides a rename or a member change moves `LastUpdatedDateTime` (only the documentation says so).
+- **Unverified:** the 25-member cap and the alias mismatch in the inferences above. Neither was tested.
+- **Unverified:** whether permissions a user consented to for themselves, rather than ones an administrator granted
+  for the organization, are carried the same way. Only administrator grants were measured.
+- Nothing in this section was measured on Windows PowerShell 5.1 or with an SDK release other than 2.25.0.

@@ -1016,7 +1016,7 @@ function Send-ScriptMessage_MicrosoftGraph
                                                 'LastUpdatedDateTime'
                                             )
 
-                                            # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by the last time the chat OBJECT was updated.
+                                            # If the script has 'Chat.Read' or 'Chat.ReadWrite', then sort by the message preview (last time a message was sent). Otherwise, sort by LastUpdatedDateTime, which Graph sets when the chat is created, renamed, or its members change, but not when a message is sent.
                                             [array]$MicrosoftGraphScopes = $MicrosoftGraphContext | Select-Object -ExpandProperty Scopes
                                             if (@($MicrosoftGraphScopes) -contains 'Chat.Read' -or @($MicrosoftGraphScopes) -contains 'Chat.ReadWrite')
                                             {
@@ -1031,13 +1031,14 @@ function Send-ScriptMessage_MicrosoftGraph
                                                 $ExistingGroupChats = $ExistingGroupChats | Sort-Object -Property LastUpdatedDateTime -Descending
                                             }
                                             
-                                            # Reset the variable and then do a compare\search
+                                            # Graph allows several group chats with the same members. The chats are sorted most recent first, so use the first match.
                                             $LatestExistingGroupChatMatch = $null
                                             foreach ($existingGroupChat in $ExistingGroupChats)
                                             {
                                                 if (-not (Compare-Object -ReferenceObject @($existingGroupChat.Members.AdditionalProperties.email) -DifferenceObject $AllChatParticipants))
                                                 {
                                                     $LatestExistingGroupChatMatch = $existingGroupChat
+                                                    break
                                                 }
                                             }
 

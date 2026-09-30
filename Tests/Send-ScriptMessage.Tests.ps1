@@ -242,6 +242,63 @@ Describe 'Send-ScriptMessage chat message' {
         }
     }
 
+    Context 'A group chat whose members match more than one existing chat' {
+        BeforeAll {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
+                $Config = [pscustomobject]@{
+                    MicrosoftGraph = [pscustomobject]@{
+                        AllowableMessageTypes = @('Chat')
+                        IncludeBCCInGroupChat = $false
+                        MgPermissionType      = 'Delegated'
+                        MgDisconnectWhenDone  = $false
+                    }
+                }
+                if ($null -ne $Service) { $Config.$Service } else { $Config }
+            }
+
+            # Graph allows several group chats with the same members. The two matching chats disagree on which is
+            # most recent: 'active-chat' has the latest message, and 'renamed-chat' was renamed or had its members
+            # changed more recently. 'other-chat' is newer than both but has different members.
+            Mock -ModuleName ScriptMessage Get-MgChat {
+                function New-Chat($Id, $Emails, $LastUpdated, $LastMessage)
+                {
+                    [pscustomobject]@{
+                        Id                  = $Id
+                        LastUpdatedDateTime = [datetime]$LastUpdated
+                        LastMessagePreview  = [pscustomobject]@{ CreatedDateTime = [datetime]$LastMessage }
+                        Members             = @($Emails | ForEach-Object { [pscustomobject]@{ AdditionalProperties = @{ email = $_ } } })
+                    }
+                }
+                New-Chat 'renamed-chat' @('sender@example.org', 'recipient@example.org') '2026-06-01' '2026-08-01'
+                New-Chat 'other-chat' @('sender@example.org', 'someone@example.org') '2026-09-15' '2026-09-15'
+                New-Chat 'active-chat' @('recipient@example.org', 'sender@example.org') '2025-01-01' '2026-09-01'
+            }
+        }
+
+        It 'with Chat.Read, posts into the chat with the most recent message' {
+            $Result = Send-ScriptMessage @MessageArguments -ChatType Group
+
+            $Result.Error | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage New-MgChat -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly -ParameterFilter { $ChatId -eq 'active-chat' }
+        }
+
+        It 'with only Chat.ReadBasic, posts into the chat most recently created, renamed, or changed' {
+            Mock -ModuleName ScriptMessage Get-ScriptMessageContext {
+                [pscustomobject]@{
+                    Account = 'sender@example.org'
+                    Scopes  = @('Chat.ReadBasic')
+                }
+            }
+
+            $Result = Send-ScriptMessage @MessageArguments -ChatType Group
+
+            $Result.Error | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName ScriptMessage New-MgChat -Times 0 -Exactly
+            Should -Invoke -ModuleName ScriptMessage New-MgChatMessage -Times 1 -Exactly -ParameterFilter { $ChatId -eq 'renamed-chat' }
+        }
+    }
+
     Context 'Mail and Chat in the same call' {
         BeforeAll {
             Mock -ModuleName ScriptMessage Get-ScriptMessageConfig {
