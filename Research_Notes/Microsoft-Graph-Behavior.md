@@ -4,11 +4,11 @@ What Microsoft Graph and the Microsoft Graph PowerShell SDK do in the areas this
 permissions, what a successful send returns, chat creation and reuse, attachment and upload limits, how SDK sign-in
 persists, and what disconnecting after a send changes. Each claim is tied to the part of the module it affects.
 
-**Only sections 7 and 9 were measured against a tenant**, on **2026-09-16** and **2026-09-30**; each section
-gives its environment. Documentation was read on **2026-09-15** from the pages listed under Sources, and the SDK
-source on **2026-09-16**, except for section 8, whose pages and SDK source were read on **2026-09-21**, and
-section 9, whose pages were read on **2026-09-30**. Microsoft revises these pages, so re-read a page before
-relying on a limit or a permission.
+**Only sections 7 and 9, and one finding in section 5, were measured against a tenant**, on **2026-09-16**,
+**2026-09-30**, and **2026-10-01**; each section gives its environment. Documentation was read on **2026-09-15**
+from the pages listed under Sources, and the SDK source on **2026-09-16**, except for section 8, whose pages and
+SDK source were read on **2026-09-21**, and section 9, whose pages were read on **2026-09-30**. Microsoft revises
+these pages, so re-read a page before relying on a limit or a permission.
 
 **Claims are labelled with their evidence.**
 
@@ -147,6 +147,12 @@ requests `Mail.Send` only. Chat attachments are uploaded with a simple `PUT` to
 that name is taken), shared with the chat recipients as read-only with sign-in required and no invitation
 email, and then referenced from the chat message.
 
+**Measured** (2026-10-01, in the environment section 9 gives for that date): a chat attachment named
+`plus+sign test.txt`, in a folder whose name also contains a `+`, was stored in OneDrive under exactly that name,
+and Teams showed it under that name in the chat. The module escapes the name with `[uri]::EscapeDataString`,
+which turns `+` into `%2B` in both PowerShell editions (measured locally the same day), so the `+` is kept rather
+than read as a space.
+
 ### What this does not establish
 
 - **Unverified:** the largest attachment, or total request size, that `sendMail` accepts inline. The 3 MB figure
@@ -158,6 +164,8 @@ email, and then referenced from the chat message.
   comment in the module says it overwrites, and the module renames the file to avoid the question.
 - **Unverified:** that `Microsoft Teams Chat Files` is the folder Teams itself uses for chat attachments. The
   module assumes it; none of the pages above mention it.
+- The `+` result was seen from the sender's side only; whether the recipients can open the shared file was not
+  checked. No other special character in a file name was tested.
 
 ## 6. From documentation: how SDK sign-in persists, and other clouds
 
@@ -365,6 +373,21 @@ accounts the tester controls: the signed-in sender and two recipients.
   `Chat.ReadBasic` path's call, expanding only `Members`, took 541 to 646 ms, median 573 ms. The `Chat.Read` call
   was slower in all five pairs.
 
+**Measured on 2026-10-01** in the same environment, with `Microsoft.Graph.Files` 2.25.0 added, `Send-ScriptMessage`
+from `develop` at `32282b7`, and the same three accounts:
+
+- **A recipient leaving a group chat in Teams changes the members the sender's listing returns.** One recipient
+  left both group chats holding all three accounts; afterwards the sender's `Get-MgChat` listing still returned
+  both, with only the two remaining members, so neither matched a send to all three.
+- **The module's own `New-MgChat -Members` call creates a group chat with valid members.** With no group chat
+  holding exactly the sender and both recipients, `Send-ScriptMessage -ChatType Group` created one, of type
+  `group`, with exactly those three members, and posted its message into it.
+- **A second send finds the chat the first one created.** The same send again posted into that chat, and the
+  sender still had only that one group chat with those three members.
+- **A member's `email` can differ in letter case from the address the caller gave.** One recipient, given in
+  lower case, came back as a member `email` with capital letters. The match still succeeded: `Compare-Object`
+  ignores letter case unless given `-CaseSensitive`, in both PowerShell editions (measured locally the same day).
+
 **From documentation:** the chat resource type page defines `lastUpdatedDateTime` as "Date and time at which the
 chat was renamed or the list of members was last changed", and says `lastMessagePreview` is "Null if no messages
 were sent in the chat" and that only the list chats operation supports it. The List chats page lists
@@ -393,12 +416,12 @@ values are exactly the sender plus the recipients, and creates a new group chat 
 
 ### What this does not establish
 
-- **Unverified:** the module's own `New-MgChat -Members` call creating a group chat with valid members. A matching
-  chat already existed, so that path was not exercised.
 - **Unverified:** whether the Teams client ever creates a second group chat with the same members, and whether
   anything besides a rename or a member change moves `LastUpdatedDateTime` (only the documentation says so).
 - **Unverified:** the 25-member cap, the UPN mismatch, and the alias failure in the inferences above. None was
   tested.
+- Only a three-member group chat was created. A `Group` send to a single recipient, which would match or create a
+  two-member group chat, was not tested.
 - **Unverified:** whether permissions a user consented to for themselves, rather than ones an administrator granted
   for the organization, are carried the same way. Only administrator grants were measured.
 - How the timing gap grows with many more chats, and whether sorting on the server by
