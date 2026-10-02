@@ -2,13 +2,15 @@
 
 What Microsoft Graph and the Microsoft Graph PowerShell SDK do in the areas this module relies on:
 permissions, what a successful send returns, chat creation and reuse, attachment and upload limits, how SDK sign-in
-persists, and what disconnecting after a send changes. Each claim is tied to the part of the module it affects.
+persists, what disconnecting after a send changes, and which forms of address find a user. Each claim is tied to
+the part of the module it affects.
 
-**Only sections 7 and 9, and one finding in section 5, were measured against a tenant**, on **2026-09-16**,
-**2026-09-30**, and **2026-10-01**; each section gives its environment. Documentation was read on **2026-09-15**
-from the pages listed under Sources, and the SDK source on **2026-09-16**, except for section 8, whose pages and
-SDK source were read on **2026-09-21**, and section 9, whose pages were read on **2026-09-30**. Microsoft revises
-these pages, so re-read a page before relying on a limit or a permission.
+**Only sections 7, 9, and 10, and one finding in section 5, were measured against a tenant**, on **2026-09-16**,
+**2026-09-30**, **2026-10-01**, and **2026-10-02**; each section gives its environment. Documentation was read on
+**2026-09-15** from the pages listed under Sources, and the SDK source on **2026-09-16**, except for section 8,
+whose pages and SDK source were read on **2026-09-21**, section 9, whose pages were read on **2026-09-30**, and
+section 10, whose pages were read on **2026-10-01** and **2026-10-02**. Microsoft revises these pages, so re-read a
+page before relying on a limit or a permission.
 
 **Claims are labelled with their evidence.**
 
@@ -53,6 +55,8 @@ these pages, so re-read a page before relying on a limit or a permission.
 | [Microsoft Graph PowerShell SDK authentication source, branch `main`](https://github.com/microsoftgraph/msgraph-sdk-powershell/tree/main/src/Authentication) | none (branch, read 2026-09-21) |
 | [List chats](https://learn.microsoft.com/en-us/graph/api/chat-list?view=graph-rest-1.0) | 2026-04-13 |
 | [chat resource type](https://learn.microsoft.com/en-us/graph/api/resources/chat?view=graph-rest-1.0) | 2026-08-05 |
+| [Integrate Microsoft Entra Agent ID with third-party identity providers](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/third-party-identity-providers) | 2026-08-13 |
+| [How the proxyAddresses attribute is populated in Microsoft Entra ID](https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/user-prov-sync/proxyaddresses-attribute-populate) | 2026-09-17 |
 
 ## 1. From documentation: permissions for each operation the module performs
 
@@ -387,6 +391,12 @@ from `develop` at `32282b7`, and the same three accounts:
 - **A member's `email` can differ in letter case from the address the caller gave.** One recipient, given in
   lower case, came back as a member `email` with capital letters. The match still succeeded: `Compare-Object`
   ignores letter case unless given `-CaseSensitive`, in both PowerShell editions (measured locally the same day).
+- **A recipient given by a UPN that differs from their primary email gets a new group chat instead of the
+  existing one.** One recipient's UPN was changed in Microsoft Entra ID to a name other than their primary email,
+  which stayed as it was. The sender's listing still showed that member's `email` as the primary address. A
+  `Group` send naming that recipient by the new UPN, with the other two members as before, found no match,
+  created a second group chat with the same three members as the existing one, and posted into it. Its `Error`
+  was empty, so the caller got no warning. Section 10 covers which forms of address find a user.
 
 **From documentation:** the chat resource type page defines `lastUpdatedDateTime` as "Date and time at which the
 chat was renamed or the list of members was last changed", and says `lastMessagePreview` is "Null if no messages
@@ -408,22 +418,101 @@ values are exactly the sender plus the recipients, and creates a new group chat 
   the same holds for every setting that only chooses which delegated permission is asked for.
 - A group chat with more than 25 members never matches, if the 25-member cap applies to `-All` paging too, so the
   module would create a new chat on every send to it.
-- A recipient given by a UPN that differs from their primary email address never matches either, with the same
-  result: the module names each member as `users('<address>')`, which going by Graph's
-  `/users/{id | userPrincipalName}` form takes a user ID or UPN, but matches on the member's `email`, the primary
-  address. Matching on each member's `userId` would avoid it. A true alias, neither the UPN nor the primary
-  address, probably fails when the chat is created instead.
+- The UPN mismatch measured above happens because the module names each member as `users('<address>')`, which
+  going by Graph's `/users/{id | userPrincipalName}` form takes a user ID or UPN, but matches on the member's
+  `email`, the primary address. Each later send by UPN finds no match in the same way, so it creates yet another
+  chat. Matching on each member's `userId` would avoid it.
 
 ### What this does not establish
 
 - **Unverified:** whether the Teams client ever creates a second group chat with the same members, and whether
   anything besides a rename or a member change moves `LastUpdatedDateTime` (only the documentation says so).
-- **Unverified:** the 25-member cap, the UPN mismatch, and the alias failure in the inferences above. None was
-  tested.
+- **Unverified:** the 25-member cap in the inferences above; it was not tested.
+- The UPN mismatch was measured with one send. The account syncs from on-premises Active Directory, and its UPN
+  was changed in Microsoft Entra ID only.
 - Only a three-member group chat was created. A `Group` send to a single recipient, which would match or create a
   two-member group chat, was not tested.
 - **Unverified:** whether permissions a user consented to for themselves, rather than ones an administrator granted
   for the organization, are carried the same way. Only administrator grants were measured.
 - How the timing gap grows with many more chats, and whether sorting on the server by
   `lastMessagePreview/createdDateTime` would make the `Chat.Read` path faster.
+- Nothing in this section was measured on Windows PowerShell 5.1 or with an SDK release other than 2.25.0.
+
+## 10. Measured: which forms of address find a user
+
+**Environment:** measured on 2026-10-01 and 2026-10-02 in the environment section 9 gives for 2026-10-01, with
+the same code and the same three accounts. Chat sends used a delegated sign-in, and the mail send the
+`Mail.Send` application permission. The accounts sync from on-premises Active Directory. On 2026-10-01 one
+recipient's UPN was changed in Microsoft Entra ID only, to a name other than their primary email, which stayed
+as it was, and it stayed changed through every test below.
+
+**Measured:**
+
+- **A chat member given by UPN resolves.** A `Group` send naming that recipient by the new UPN created a group
+  chat with them as a member (section 9). On 2026-10-02 a `OneOnOne` send to the same UPN posted into the
+  existing one-on-one chat between the two accounts, created in 2024, with `Error` empty.
+- **A chat member given by primary email resolves while it is not the UPN.** On 2026-10-01, and again on
+  2026-10-02, a `OneOnOne` send to that recipient's primary email posted into the same one-on-one chat, with
+  `Error` empty.
+- **A secondary email address that was never a UPN does not resolve.** On 2026-10-01 a `OneOnOne` send with
+  `From` set to one of the sender's own secondary SMTP addresses, which had never been their UPN, failed in
+  `New-MgChat` with 404 `Failed to find users with user principal name '<address>'`. Nothing was posted. The
+  result's `Error` held only the module's warning `Cannot create a chat with the recipient '<recipient>'.`,
+  which names the recipient although the sender's address was the one that failed; Graph's own message was
+  printed to the console, not added to the result.
+- **A chat attachment can be shared with a UPN.** On 2026-10-02 a `OneOnOne` send to the recipient's UPN with a
+  small attachment uploaded the file to the sender's OneDrive and gave the recipient a `read` permission on it,
+  with `Error` empty. That permission's SharePoint sign-in name was the UPN; the only other permission on the
+  file was the sender's, as owner.
+- **Mail to that UPN was delivered.** On 2026-10-02 a `Group` mail send to the recipient's UPN returned `Status`
+  `$true` with `Error` empty, the message reached the recipient's inbox, and no non-delivery report reached the
+  sender. The recipient's proxy addresses, as Microsoft Entra ID listed them the same day, included the UPN as a
+  secondary `smtp:` address.
+
+**From documentation:** the page on how the proxyAddresses attribute is populated (read 2026-10-02) says "If the
+user has an Exchange license assigned or the user is an Exchange Online recipient, such as a shared mailbox, the
+`userPrincipalName` is always added as a proxy address", and its scenarios add the UPN as a secondary `smtp`
+address whenever the primary SMTP address differs from it. The Agent ID integration page (read 2026-10-01) finds
+a user from an email address by filtering on `mail`, then on `otherMails`, and addresses the user resource
+directly only by UPN.
+
+**From source:** every address reaches Graph as the caller gave it. When a chat is created,
+`ConvertTo-IMicrosoftGraphConversationMember` names the sender and each recipient as `users('<address>')`. When
+an attachment is shared, `ConvertTo-IMicrosoftGraphDriveInvite` passes each chat recipient as an invitation
+`email`. `ConvertTo-IMicrosoftGraphRecipient` passes each mail recipient as an `emailAddress` `address`. A
+`OneOnOne` send calls `New-MgChat` for each recipient without listing or comparing chats.
+
+**Inference:**
+
+- A one-on-one send never compares addresses, so a UPN cannot cause the duplicate chat that section 9 describes
+  there.
+- Mail to a mailbox user's UPN is delivered: going by the documentation above, a mailbox's UPN is always one of
+  its email addresses.
+- A secondary address given for a recipient, rather than for `From` as measured above, fails the same way when
+  the chat is created, because the same function names the sender and every recipient.
+- With section 9: a group chat is created only when every address resolves, and found again only when every
+  member is given by the address its `email` holds, the primary address. Of the forms tested, only the primary
+  email can do both, provided it resolves when it is not the UPN (unverified, below). The UPN worked for every
+  other use tested: one-on-one chats, attachment sharing, and mail.
+
+### What this does not establish
+
+- **Unverified:** whether `users('<address>')` resolves a primary email that is not the UPN. The primary email
+  that resolved had also been that account's UPN until 2026-10-01, so the results do not separate "Graph
+  resolves the primary email" from "Graph still resolves a former UPN". Against the first: the 404 above names
+  the lookup as a user principal name lookup, and the Agent ID integration page addresses the user resource
+  directly only by UPN. Against the second: the new UPN and the old one both resolved within the same hour, at
+  least half an hour after the change, and the old one resolved again more than an hour after it and again the
+  next day. That rules out a replaced UPN that stays resolvable for less than a day, but not one Graph keeps
+  longer or for good. An account whose primary email has never been its UPN would settle it. So would the
+  former UPN, once the changed UPN is put back, if it stops resolving: a secondary address that was never a UPN
+  does not resolve, so the primary email would be what resolved, even if the former UPN stays among the
+  account's secondary addresses.
+- **Unverified:** a secondary address given for a recipient; only `From` was tested.
+- Each result came from one or two sends, and every UPN and primary email result involved the same recipient
+  account. The attachment share and the mail send used a UPN that was also a proxy address, so neither shows
+  what happens with a UPN that is not an email address; going by the documentation above, a mailbox user cannot
+  have one.
+- Attachment sharing was tested only with a UPN, not with a primary email that is not the UPN or with a secondary
+  address.
 - Nothing in this section was measured on Windows PowerShell 5.1 or with an SDK release other than 2.25.0.
