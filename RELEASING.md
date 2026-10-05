@@ -102,7 +102,11 @@ Gitflow without release branches, because only one version is maintained at a ti
 
 Rules for the shared branches:
 
-- **Changes reach `develop` and `main` only through pull requests**, and the tests must pass first.
+- **Changes reach `main` only through pull requests**, and the tests must pass first.
+- **Changes reach `develop` through pull requests too, except the maintainer's own changes that a test run before
+  merging wouldn't benefit**, such as documentation. Those may be committed straight to `develop` after running
+  the tests locally, and the Tests workflow still runs on the push. Use a pull request anyway to squash a branch's
+  commits.
 - **Merge into `main` with a merge commit, never a squash or a rebase.** A squashed commit on `main` does not
   exist on `develop`, so every later release pull request would conflict with it.
 - **Never rebase or force-push `main` or `develop`.** Release tags cannot move, and rewriting shared history
