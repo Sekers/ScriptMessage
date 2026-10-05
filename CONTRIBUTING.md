@@ -33,7 +33,7 @@ Thank you for helping improve ScriptMessage. This guide covers the everyday work
   Windows PowerShell 5.1 misreads non-ASCII characters in PowerShell files saved without a byte order mark.
   `.gitattributes` handles line endings, the test suite checks all three rules, and [AGENTS.md](./AGENTS.md)
   explains them.
-- **Rebase only your own branch, and only before it merges.** Never force-push `develop` or `main`.
+- **Rebasing and force-pushing follow the [branch rules](./RELEASING.md#branches)** in RELEASING.md.
 
 AI assistants working in this repository follow [AGENTS.md](./AGENTS.md), which also holds the detailed rules
 for writing changelog entries.
