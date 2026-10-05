@@ -102,11 +102,19 @@ Gitflow without release branches, because only one version is maintained at a ti
 
 Rules for the shared branches:
 
-- **Changes reach `develop` and `main` only through pull requests**, and the tests must pass first.
+- **Changes reach `main` only through pull requests**, and the tests must pass first.
+- **Changes reach `develop` through pull requests too, except the maintainer's own changes that a test run before
+  merging wouldn't benefit**, such as documentation. Those may be committed straight to `develop` after running
+  the tests locally, and the Tests workflow still runs on the push. Use a pull request anyway to squash a branch's
+  commits.
 - **Merge into `main` with a merge commit, never a squash or a rebase.** A squashed commit on `main` does not
   exist on `develop`, so every later release pull request would conflict with it.
 - **Never rebase or force-push `main` or `develop`.** Release tags cannot move, and rewriting shared history
   breaks every contributor's clone. Rebase only your own feature branch, and only before it merges.
+- **`develop` does not allow GitHub's rebase merge**, because GitHub re-creates rebased commits without their
+  signatures ([About merge methods on GitHub](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github)).
+  For a clean history, rebase your feature branch locally onto `origin/develop` (Git re-signs each commit when
+  signing is set up), force-push that branch, and merge it with a merge commit.
 - **After every release or hotfix, merge `main` back into `develop` with a merge commit, never a squash or a
   rebase**, so `develop` contains the tagged release commit. A squash or a rebase copies `main`'s changes into
   new commits instead, so `develop` never contains the tagged commit, and a later release pull request can

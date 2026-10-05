@@ -72,6 +72,9 @@ fix to something that itself landed after the last tag is invisible to users. Th
 never also appear as a "Fixed" entry, and it should not be listed among the functions a fix "affects." The same
 goes for a new configuration setting or message type.
 
+**A placeholder that never worked is described by what it does now**, with no history and no "New Parameter"
+label. In 1.1.1, `-MailType` was such a placeholder: its help read "TODO".
+
 **A change the module adapted to is not a fix.** "Fixed" claims a defect in this module. If the code was never
 wrong and something underneath it changed (the Microsoft Graph API, the Microsoft Graph PowerShell SDK, or
 PowerShell itself), the entry belongs in **Changed**, or in **Added** when it gives callers something new. The
@@ -108,6 +111,10 @@ Leave out:
   contributors, so link them from the commit message or the code, not from a user-facing entry.
 - **Anything with no observable effect on a caller.** If no script a user could reasonably write would have
   hit the bug, there is nothing to log.
+- **Input the documented format never supported**, such as a true/false setting written as quoted text. It gets
+  no entry of its own, at most a general `Minor:` one.
+- **Result values that depend on the service's response**, such as `Status` being `$true`. Help text leaves them
+  out too.
 
 Two or three sentences is a normal entry. Length is not thoroughness: someone scanning a release to see
 whether it affects them should get the answer in the first line.
@@ -200,6 +207,33 @@ $Text = [System.IO.File]::ReadAllText($Path)
 [System.IO.File]::WriteAllText($Path, ($Text -replace "`r`n","`n"))   # writes UTF-8 without a BOM
 ```
 
+## Design decisions
+
+These are settled. Don't reopen one without the maintainer.
+
+- **Exported functions' parameters and output change only with the maintainer's approval, and internal plumbing
+  never becomes a public parameter.** Pass plumbing to the private handlers instead. `Connect-ScriptMessage
+  -ServiceConfig` was added as plumbing and removed before it shipped for this reason.
+- **Messaging services live in this repository, permanently.** Third-party drop-in service files are not a goal,
+  so no public handler contract gets designed or frozen.
+- **Adding a service** takes one `MessagingService` enum value in `ScriptMessage/ScriptMessage.psm1`, one file in
+  `ScriptMessage/Services/`, and one `Register-ScriptMessageService` call at the bottom of that file. No function
+  in `ScriptMessage/Public/` switches on the service or calls a Microsoft Graph cmdlet.
+- **`enum MessagingService` stays.** The comment above it in `ScriptMessage/ScriptMessage.psm1` says why; don't
+  replace it with a `[string]` parameter and an argument completer.
+- **A generic setting is not necessarily supported by every service.** The module exists to standardize calls so
+  services are interchangeable, or so one call sends through several at once, which makes the unsupported case
+  normal rather than exceptional. A service that can't honor one reports it as the [Code](#code) section says.
+  There is no declaration of which settings each service supports.
+- **Generic settings are resolved in the core, not in each service.** `MailType`, `ChatType`, and
+  `IncludeBCCInGroupChat` are shared vocabulary, so resolving them in each service would repeat the same merge
+  rule (a parameter beats the configuration file) in every one. A service resolves only its own prefixed
+  settings, such as `MgDisconnectWhenDone` and `MgApp_CertificatePath`.
+- **A setting's name shows which layer owns it.** Every Microsoft Graph setting starts with `Mg`
+  (`MgPermissionType`, `MgDisconnectWhenDone`, `MgApp_*`), and generic settings have no prefix
+  (`AllowableMessageTypes`, `MailType`, `ChatType`, `IncludeBCCInGroupChat`). Give a new service's settings a
+  prefix of their own.
+
 ## Code
 
 - **A new public function needs an explicit entry in `FunctionsToExport` in
@@ -211,7 +245,9 @@ $Text = [System.IO.File]::ReadAllText($Path)
 - **A boolean configuration setting is an opt-in flag: on only when it equals `$true`.** Read it as
   `$ServiceConfig.<Name> -eq $true`, with the setting on the left, so missing, `false`, typos, and any quoted
   text except `"true"` (in any letter case, which counts as on) all mean off. Never read one with a `[bool]` cast, a truthiness test, or `$true -eq`: each of those reads the
-  text `"false"` as true. Name a new boolean setting so that `true` opts in and off is the safe state.
+  text `"false"` as true. Name a new boolean setting so that `true` opts in and off is the safe state. Typed
+  parameters per boolean setting were considered and rejected: configuration reaches a service as one object, so
+  they would need a restructure.
 - **A service that cannot honor a setting or parameter it receives says so in its result and sends what it
   can.** Add a `Warning` entry to that message's `Error` property, as the Microsoft Graph service does for a
   chat sent on behalf of someone else, rather than failing the whole call or dropping the value silently.
@@ -250,3 +286,18 @@ one.
   `CHANGELOG.md` or other user-facing text.
 - **The safety rules above apply while gathering evidence:** no live sends without permission, and no tenant
   name or email domain in a note.
+
+## The wiki
+
+The wiki is the separate repository `Sekers/ScriptMessage.wiki`, and its only branch, `master`, publishes on
+push.
+
+- **It describes the latest release**, with no version notes and nothing held back. Changes for the next release
+  are written ahead of it and pushed once that release has shipped.
+- **A service's setup page is named after its `MessagingService` value**, with a hyphen between words so GitHub
+  shows a readable title: `Microsoft-Graph.md` for `MicrosoftGraph`.
+- **Pages use LF line endings.** Put anything containing `$` in a code span or block, in case GitHub reads a pair
+  of dollar signs as math.
+- **Its `.markdownlint.json` turns off MD041**, because GitHub shows each page's name as its title. Indent bullets
+  nested under bullets 2 spaces, and bullets under numbered steps 4. When re-indenting a bullet, move the tables
+  and paragraphs under it too; a linter quick fix moves only the bullet line.

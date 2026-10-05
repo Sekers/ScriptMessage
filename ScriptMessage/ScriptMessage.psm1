@@ -16,6 +16,10 @@ $script:ScriptMessageServiceTable = [ordered]@{}
 
 # Public Enum
 # Name: MessagingService
+# An enum, not a [string] parameter with an [ArgumentCompleter]: the enum rejects an unknown service name when
+# parameters bind, before anything runs, while a completer only suggests names. The generator form,
+# [ValidateSet([IValidateSetValuesGenerator])], needs PowerShell 6 or later, so it is unavailable to a module
+# that supports Windows PowerShell 5.1.
 enum MessagingService {
     MicrosoftGraph
 }
