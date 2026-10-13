@@ -45,7 +45,7 @@
 
 ---
 
-## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - 2026-09-16
+## [1.1.1](https://github.com/Sekers/ScriptMessage/tree/1.1.1) - (2026-09-16)
 
 ### Changed
 

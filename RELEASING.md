@@ -143,7 +143,7 @@ section.
 2. **Open a release-prep pull request into `develop`** that changes only:
    - `ModuleVersion`, and `Prerelease` for a prerelease, in `ScriptMessage/ScriptMessage.psd1`.
    - `CHANGELOG.md`: rename `## [Unreleased](...)` to a dated heading such as
-     `## [1.2.0](https://github.com/Sekers/ScriptMessage/tree/1.2.0) - 2026-09-20`. Do not add a new
+     `## [1.2.0](https://github.com/Sekers/ScriptMessage/tree/1.2.0) - (2026-09-20)`. Do not add a new
      `[Unreleased]` section.
 3. **Open a pull request from `develop` into `main`**, and merge it with a merge commit once the checks pass. Merge
    nothing else into `develop` until then, so no new `[Unreleased]` section reaches `main`.
@@ -189,7 +189,7 @@ immutable releases would lock, for a version that did not ship.
 ## Prereleases
 
 A prerelease follows the same steps, with three differences: the release-prep pull request also sets
-`Prerelease`, the changelog heading names the prerelease (`## [2.0.0-rc01](...) - 2026-09-20`), and the tag goes
+`Prerelease`, the changelog heading names the prerelease (`## [2.0.0-rc01](...) - (2026-09-20)`), and the tag goes
 on the release-prep merge commit on `develop` instead of on `main`. When the final version ships, its changelog
 section covers everything since the last stable release, not only the changes since the last prerelease.
 
